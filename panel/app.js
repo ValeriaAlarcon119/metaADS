@@ -891,23 +891,52 @@ function pintarEtapa2() {
       )
       .join('')}`;
 
+  // Las veinte funciones van plegadas y agrupadas por lo que hacen. Un muro de
+  // nombres técnicos en inglés no informa: ocupa.
   const mejoras = `
     <div class="casilla-estado">
       <span class="marca-check">✓</span>
-      <div>
-        <div class="titulo">Mejoras automáticas de Meta: ${p.mejoras.total} en OPT_OUT</div>
+      <div style="width:100%">
+        <div class="titulo">Meta no va a tocar tus anuncios</div>
         <div class="sutil">
-          ${
-            p.mejoras.rotacionDeTexto === 'OPT_IN'
-              ? 'La única inscripción activa es <code>text_optimizations</code>, que no genera ni reescribe ' +
-                'nada: es lo que permite que se entreguen las 5 variantes de texto escritas a mano. ' +
-                'Sin ella Meta serviría un solo texto.'
-              : 'Ninguna inscripción activa: modo de texto simple.'
-          }
+          Le he dicho que <strong>no</strong> a las ${p.mejoras.total} funciones con las que modifica
+          los anuncios por su cuenta. Tu foto, tu video y tus textos salen tal como los apruebas aquí.
         </div>
-        <ul class="interruptores">
-          ${p.mejoras.apagadas.map((m) => `<li><code>${esc(m)}</code> — OPT_OUT</li>`).join('')}
-        </ul>
+
+        <details class="plegable">
+          <summary>Ver las ${p.mejoras.total} funciones desactivadas</summary>
+          <div class="plegable-cuerpo">
+            ${(p.mejoras.grupos || [])
+              .map(
+                (g) => `
+              <div class="grupo-mejoras">
+                <h4>${esc(g.etiqueta)}</h4>
+                <ul>
+                  ${g.funciones
+                    .map(
+                      (f) =>
+                        `<li><span class="no">✕</span> ${esc(f.que)}
+                           <span class="tecnico"><code>${esc(f.campo)}</code></span></li>`,
+                    )
+                    .join('')}
+                </ul>
+              </div>`,
+              )
+              .join('')}
+          </div>
+        </details>
+
+        ${
+          p.mejoras.rotacionDeTexto === 'OPT_IN'
+            ? `<div class="excepcion">
+                 <strong>Con una excepción a propósito:</strong> le dejo <em>elegir entre tus 5 textos</em>
+                 cuál enseña a cada persona. No escribe ni cambia nada — solo decide cuál de los que
+                 escribiste tú va mejor. Sin esto, Meta serviría siempre el mismo y los otros cuatro
+                 no se usarían.
+                 <span class="tecnico"><code>text_optimizations = OPT_IN</code></span>
+               </div>`
+            : '<div class="sutil">Modo de texto simple: tampoco rota entre textos.</div>'
+        }
       </div>
     </div>`;
 
@@ -1186,35 +1215,58 @@ function pintarEtapa3() {
     .map((c) =>
       c.anuncios
         .map(
-          (a, i) => `
+          (a, i) => {
+            const d = (campo) => `data-campo="${campo}" data-conjunto="${c.indice}" data-anuncio="${i}"`;
+            return `
       <div class="editor-anuncio">
-        <h3>${esc(a.nombre)}${varios ? ` <span class="sutil">· ${esc(c.nombre)}</span>` : ''}</h3>
+        <h3>Anuncio ${a.numero}${varios ? ` · ${esc(c.nombre)}` : ''}</h3>
+
         <label>
-          Textos principales — una opción por línea, máximo ${lim.maxOpciones}
-          <textarea data-campo="textosPrincipales" data-conjunto="${c.indice}" data-anuncio="${i}"
-                    rows="5">${esc(a.copy.textosPrincipales.join('\n'))}</textarea>
+          Nombre del anuncio
+          <input type="text" ${d('nombreManual')} value="${esc(a.nombre)}" />
+          <span class="pista-campo">
+            Se arma solo con lo de abajo. Si lo escribes a mano y no cumple el manual, te aviso y decides.
+          </span>
+        </label>
+
+        <div class="rejilla">
+          <label>
+            Referencia <span class="sutil">— va en el nombre</span>
+            <input type="text" ${d('referencia')} value="${esc(a.referencia)}" />
+          </label>
+          <label>
+            Producto <span class="sutil">— va en los textos</span>
+            <input type="text" ${d('producto')} value="${esc(a.producto)}" />
+          </label>
+          <label>
+            Talento <span class="sutil">— opcional</span>
+            <input type="text" ${d('talento')} value="${esc(a.talento || '')}"
+                   list="talentos" placeholder="vacío si no sale nadie" />
+          </label>
+        </div>
+
+        <label>
+          Textos principales <span class="sutil">— una opción por línea, máximo ${lim.maxOpciones}</span>
+          <textarea ${d('textosPrincipales')} rows="10">${esc(a.copy.textosPrincipales.join('\n'))}</textarea>
         </label>
         <label>
-          Títulos — una opción por línea
-          <textarea data-campo="titulos" data-conjunto="${c.indice}" data-anuncio="${i}"
-                    rows="5">${esc(a.copy.titulos.join('\n'))}</textarea>
+          Títulos <span class="sutil">— una por línea, hasta ${lim.titulos} caracteres</span>
+          <textarea ${d('titulos')} rows="6">${esc(a.copy.titulos.join('\n'))}</textarea>
         </label>
         <label>
-          Descripciones — una opción por línea
-          <textarea data-campo="descripciones" data-conjunto="${c.indice}" data-anuncio="${i}"
-                    rows="5">${esc(a.copy.descripciones.join('\n'))}</textarea>
+          Descripciones <span class="sutil">— una por línea, hasta ${lim.descripciones} caracteres</span>
+          <textarea ${d('descripciones')} rows="6">${esc(a.copy.descripciones.join('\n'))}</textarea>
         </label>
         <label>
-          Mensaje prellenado de WhatsApp
-          <input type="text" data-campo="mensajePrellenado" data-conjunto="${c.indice}" data-anuncio="${i}"
-                 value="${esc(a.copy.mensajePrellenado)}" />
+          Mensaje prellenado <span class="sutil">— lo escribe el cliente al abrir el chat</span>
+          <input type="text" ${d('mensajePrellenado')} value="${esc(a.copy.mensajePrellenado)}" />
         </label>
         <label>
-          Saludo de la pantalla previa
-          <input type="text" data-campo="saludoWhatsApp" data-conjunto="${c.indice}" data-anuncio="${i}"
-                 value="${esc(a.copy.saludoWhatsApp)}" />
+          Saludo previo <span class="sutil">— lo dice la tienda antes del chat</span>
+          <input type="text" ${d('saludoWhatsApp')} value="${esc(a.copy.saludoWhatsApp)}" />
         </label>
-      </div>`,
+      </div>`;
+          },
         )
         .join(''),
     )

@@ -486,9 +486,11 @@ const TIPO_REGIONAL = Object.keys(TIPOS_REGIONAL).join('|');
 const PATRONES = {
   campana: new RegExp(`^C\\d{1,5} \\| (?:${SEDE_CODIGO}) \\| \\d{6}$`),
   conjunto: new RegExp(`^C\\d{1,5} \\| ${DIST} \\| CJTO\\d{1,4} \\| (?:${SEGMENTO})(?: \\| (?:TEST|OPT))?$`),
-  // El talento lleva un lookahead negativo para no tragarse el L1/L2 final.
+  // El talento lleva un lookahead negativo para no tragarse el L1/L2 final, y
+  // admite varias palabras: "SOFIA" pero tambien "SOFIA MEDELLIN", que es como
+  // se distingue a la misma persona en dos regiones.
   anuncio: new RegExp(
-    `^ADS\\d{1,4} \\| ${DIST} \\| (?:IMG|VID) \\| [A-Z0-9 ]+(?: \\| (?!L[12]$)[A-Z]+)?(?: \\| L[12])?$`,
+    `^ADS\\d{1,4} \\| ${DIST} \\| (?:IMG|VID) \\| [A-Z0-9 ]+(?: \\| (?!L[12]$)[A-Z]+(?: [A-Z]+)*)?(?: \\| L[12])?$`,
   ),
   campanaRegional: new RegExp(`^R\\d{1,5} \\| (?:${REGION}) \\| (?:${TIPO_REGIONAL}) \\| \\d{6}$`),
   conjuntoRegional: /^R\d{1,5} \| CJTO\d{1,4} \| [A-Z0-9-]+$/,

@@ -797,6 +797,104 @@ p:last-child {
   cursor: not-allowed;
 }
 
+/* ---------------------------- plegables ---------------------------------- */
+
+.plegable {
+  margin-top: var(--e3);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: var(--e3);
+}
+
+.plegable > summary {
+  cursor: pointer;
+  color: var(--texto-2);
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.plegable > summary::-webkit-details-marker {
+  display: none;
+}
+
+.plegable > summary::before {
+  content: "▸";
+  font-size: 11px;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.plegable[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.plegable > summary:hover {
+  color: var(--texto);
+}
+
+.plegable-cuerpo {
+  margin-top: var(--e3);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--e3);
+}
+
+.grupo-mejoras h4 {
+  margin: 0 0 var(--e2);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sutil);
+  font-weight: 700;
+}
+
+.grupo-mejoras ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--e1);
+}
+
+.grupo-mejoras li {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--texto-2);
+  display: flex;
+  gap: var(--e2);
+  align-items: baseline;
+}
+
+.grupo-mejoras .no {
+  color: var(--rojo);
+  font-size: 10px;
+  flex: none;
+}
+
+.grupo-mejoras .tecnico {
+  display: block;
+}
+
+.excepcion {
+  margin-top: var(--e3);
+  padding: var(--e3) var(--e4);
+  background: var(--azul-fondo);
+  border: 1px solid var(--azul-borde);
+  border-left-width: 3px;
+  border-radius: 0 var(--radio-s) var(--radio-s) 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texto-2);
+}
+
+.excepcion strong {
+  color: var(--texto);
+}
+
 /* ------------------------------ anuncios --------------------------------- */
 
 .anuncio {
@@ -957,7 +1055,26 @@ p:last-child {
 
 .editor textarea {
   resize: vertical;
-  min-height: 52px;
+  min-height: 120px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  /* Sin esto el textarea corta las líneas largas y hay que desplazarse
+     horizontalmente para leer un texto que en el anuncio se ve entero. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.editor label > .sutil {
+  font-weight: 400;
+}
+
+.pista-campo {
+  display: block;
+  margin-top: var(--e1);
+  font-size: 12px;
+  color: var(--sutil);
+  line-height: 1.5;
 }
 
 .editor input:focus,

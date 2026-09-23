@@ -753,8 +753,47 @@ function mejorasAutomaticas({ modoTexto, nivel = 'completo' }) {
 }
 
 /**
+ * Que hace cada mejora, dicho en castellano.
+ *
+ * Una lista de veinte nombres tecnicos en ingles no le dice nada a nadie:
+ * "cv_transformation" o "media_liquidity_animated_image" no se entienden ni
+ * leyendolos despacio. Aqui cada una tiene su nombre y su grupo, para poder
+ * enseñarlas agrupadas y plegadas en vez de como un muro.
+ */
+export const QUE_HACE_CADA_MEJORA = Object.freeze({
+  standard_enhancements: { grupo: 'imagen', que: 'Paquete de mejoras automaticas (ya no funciona como interruptor)' },
+  image_touchups: { grupo: 'imagen', que: 'Retoca la foto: recorta, endereza y cambia la proporcion' },
+  image_brightness_and_contrast: { grupo: 'imagen', que: 'Sube el brillo y el contraste de la foto' },
+  image_templates: { grupo: 'imagen', que: 'Le pega texto y adornos encima a la foto' },
+  image_generation: { grupo: 'imagen', que: 'Genera imagenes nuevas con inteligencia artificial' },
+  background_generation: { grupo: 'imagen', que: 'Inventa un fondo nuevo detras del producto' },
+  cv_transformation: { grupo: 'imagen', que: 'Reencuadra la imagen analizando lo que hay dentro' },
+  video_auto_crop: { grupo: 'video', que: 'Recorta el video solo para cada ubicacion' },
+  media_liquidity_animated_image: { grupo: 'video', que: 'Convierte la foto en una animacion' },
+  music: { grupo: 'video', que: 'Le pone musica de fondo al anuncio' },
+  '3d_animation': { grupo: 'video', que: 'Le da efecto de movimiento 3D a la imagen' },
+  text_generation: { grupo: 'texto', que: 'Escribe textos nuevos que nadie ha revisado' },
+  description_automation: { grupo: 'texto', que: 'Genera la descripcion sola' },
+  enhance_cta: { grupo: 'texto', que: 'Cambia el texto del boton por otro que Meta crea mejor' },
+  adapt_to_placement: { grupo: 'formato', que: 'Reordena el anuncio segun donde se muestre' },
+  profile_card: { grupo: 'formato', que: 'Añade una tarjeta con el perfil de la Pagina' },
+  site_extensions: { grupo: 'formato', que: 'Añade enlaces extra a otras partes del sitio' },
+  product_extensions: { grupo: 'formato', que: 'Añade productos del catalogo al anuncio' },
+  catalog_feed_tags: { grupo: 'formato', que: 'Pone etiquetas del catalogo encima (precio, envio)' },
+  inline_comment: { grupo: 'formato', que: 'Escribe comentarios automaticos debajo del anuncio' },
+});
+
+/** Como se llama cada grupo delante de una persona. */
+export const GRUPOS_DE_MEJORAS = Object.freeze({
+  imagen: 'Tocar la imagen',
+  video: 'Tocar el video',
+  texto: 'Escribir o cambiar textos',
+  formato: 'Añadir cosas al anuncio',
+});
+
+/**
  * Resumen legible de lo que se va a declarar, para enseñarlo antes de crear.
- * @returns {{rotacionDeTexto:string, apagadas:string[], total:number}}
+ * @returns {{rotacionDeTexto:string, apagadas:string[], total:number, grupos:object[]}}
  */
 export function describirMejoras({ modoTexto = 'multiple', nivel = 'completo' } = {}) {
   const dof = mejorasAutomaticas({ modoTexto, nivel });
@@ -764,10 +803,22 @@ export function describirMejoras({ modoTexto = 'multiple', nivel = 'completo' } 
     .map(([k]) => k)
     .sort();
 
+  // Agrupadas y traducidas, para que la interfaz pueda enseñarlas plegadas.
+  const grupos = Object.entries(GRUPOS_DE_MEJORAS)
+    .map(([clave, etiqueta]) => ({
+      clave,
+      etiqueta,
+      funciones: apagadas
+        .filter((f) => QUE_HACE_CADA_MEJORA[f]?.grupo === clave)
+        .map((f) => ({ campo: f, que: QUE_HACE_CADA_MEJORA[f].que })),
+    }))
+    .filter((g) => g.funciones.length > 0);
+
   return {
     rotacionDeTexto: spec[MEJORA_DE_ROTACION_DE_TEXTO]?.enroll_status || 'no declarada',
     apagadas,
     total: apagadas.length,
+    grupos,
   };
 }
 

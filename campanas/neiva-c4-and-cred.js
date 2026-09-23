@@ -70,7 +70,8 @@ export default {
     radioKm: 40, // Neiva + 40 km a la redonda
     modoGeo: 'ciudad', // 'ciudad' (como Ads Manager) | 'punto' (lat/lng del local)
     plataformas: ['facebook', 'instagram'],
-    dispositivos: ['mobile'],
+    // Los dos: Meta reparte solo segun donde rinda mejor.
+    dispositivos: ['mobile', 'desktop'],
   },
 
   /* ======================================================================== */
@@ -124,12 +125,13 @@ export default {
         'Consulta disponibilidad',
       ],
 
-      // Queda ya escrito en el chat del cliente. Nombra producto y sede para
-      // que el asesor sepa de que anuncio viene el lead sin preguntarlo.
-      mensajePrellenado: 'Hola Celred Neiva, vi el anuncio del Tecno Camon 50 Pro y quiero información de precio y formas de pago.',
+      // Lo escribe el CLIENTE al abrir el chat, no la tienda: va en primera
+      // persona y directo, como en los anuncios que ya corren. Nombra el
+      // equipo para que el asesor sepa de que anuncio viene el lead.
+      mensajePrellenado: 'Hola, quiero más información para adquirir el Tecno Camon 50 Pro',
 
-      // Saludo de la pantalla previa al chat.
-      saludoWhatsApp: 'Hola, cuéntanos qué equipo te interesa y te asesoramos.',
+      // Esto SI lo dice la tienda: es el saludo de la pantalla previa al chat.
+      saludoWhatsApp: '¡Hola! Bienvenido a Celred Neiva, es un gusto saludarte 😊',
     },
 
     /* ---------------------------------------------------------------------- */
@@ -173,9 +175,8 @@ export default {
         'Asesoría en tienda',
       ],
 
-      mensajePrellenado: 'Hola Celred Neiva, vi el video del Infinix Hot 60 Pro y quiero información de precio y formas de pago.',
-
-      saludoWhatsApp: 'Hola, cuéntanos qué equipo te interesa y te asesoramos.',
+      mensajePrellenado: 'Hola, quiero más información para adquirir el Infinix Hot 60 Pro',
+      saludoWhatsApp: '¡Hola! Bienvenido a Celred Neiva, es un gusto saludarte 😊',
     },
   ],
 };

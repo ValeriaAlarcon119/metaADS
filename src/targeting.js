@@ -498,7 +498,10 @@ export function construirTargeting(sedeKey, opciones = {}) {
     radioKm = sede.radioKm,
     modoGeo = sede.modoGeo || (sede.ciudadKey ? 'ciudad' : 'punto'),
     plataformas = ['facebook', 'instagram'],
-    dispositivos = ['mobile'],
+    // Los dos marcados de entrada. Meta reparte solo segun donde rinda mejor;
+    // dejar fuera el escritorio de salida es descartar publico sin haberlo
+    // medido. Se puede quitar desde el panel cuando haga falta.
+    dispositivos = ['mobile', 'desktop'],
   } = opciones;
 
   const radio = Math.max(1, Math.min(80, Number(radioKm)));

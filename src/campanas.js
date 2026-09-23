@@ -18,7 +18,13 @@ import { existsSync, readdirSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { CODIGOS_SEGMENTO, MAX_ANUNCIOS_POR_CONJUNTO, SUFIJOS_CONJUNTO, obtenerSedeNomenclatura } from './nomenclatura.js';
+import {
+  CODIGOS_SEGMENTO,
+  MAX_ANUNCIOS_POR_CONJUNTO,
+  SUFIJOS_CONJUNTO,
+  obtenerSedeNomenclatura,
+  validarTalento,
+} from './nomenclatura.js';
 import { SEDES_DISPONIBLES, obtenerSede as obtenerSedeTargeting } from './targeting.js';
 import { resolverCreativo, RAIZ } from './creativos-sede.js';
 import { MAX_OPCIONES_TEXTO } from './creatives.js';
@@ -284,6 +290,16 @@ function validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo = '' }) {
           );
         }
       }
+    }
+
+    /* El talento es opcional, pero si se pone tiene que ser uno de la lista. */
+    if (a.talento) {
+      const r = validarTalento(a.talento);
+      if (!r.ok) errores.push(`${etiqueta}: ${r.motivo}`);
+    }
+
+    if (!a.referencia || !String(a.referencia).trim()) {
+      errores.push(`${etiqueta}: falta la referencia (marca y modelo como esta en inventario).`);
     }
 
     if (!a.mensajePrellenado) errores.push(`${etiqueta}: falta el mensajePrellenado de WhatsApp.`);

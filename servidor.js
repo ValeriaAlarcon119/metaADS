@@ -427,6 +427,8 @@ function vistaDelPlan(plan, { firma, cambios }) {
       rotacionDeTexto: plan.mejoras.rotacionDeTexto,
       apagadas: plan.mejoras.apagadas,
       total: plan.mejoras.total,
+      // Agrupadas y en castellano, para enseñarlas plegadas.
+      grupos: plan.mejoras.grupos,
       modoTexto: plan.modoTexto,
     },
 

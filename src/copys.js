@@ -205,15 +205,23 @@ export function generarCopys({
 
   /* --- Mensaje prellenado ------------------------------------------------ */
 
-  // Nombra la sede concreta, no solo la ciudad: en Pasto hay tres tiendas y
-  // asi el asesor sabe de cual vino el lead.
-  const donde = sede && lugar ? `Celred ${lugar} ${sede}` : tienda;
-  const vio = esVideo ? 'el video' : 'el anuncio';
+  // Lo escribe el CLIENTE, no la tienda: es el texto que le queda listo para
+  // enviar al abrir el chat. Por eso va en primera persona y va directo al
+  // grano, como el ejemplo real de Celred:
+  //
+  //   "Hola, quiero mas informacion para adquirir el Samsung Galaxy A17"
+  //
+  // Nombrar la sede solo tiene sentido donde hay varias tiendas en la misma
+  // ciudad (Pasto e Ipiales): ahi le dice al asesor a que local va el cliente.
+  // En Neiva, "Celred Neiva Neiva" no ayudaba a nadie.
+  const nombreSede = String(sede || '').trim();
+  const sedeAportaAlgo = nombreSede && lugar && !nombreSede.toLowerCase().includes(lugar.toLowerCase());
+  const local = sedeAportaAlgo ? ` (${nombreSede})` : '';
 
   const prellenados = [
-    `Hola ${donde}, vi ${vio} del ${nombre} y quiero información de precio y formas de pago.`,
-    `Hola ${donde}, vi ${vio} del ${nombre} y quiero información.`,
-    `Hola, vi ${vio} del ${nombre} y quiero información.`,
+    `Hola, quiero más información para adquirir el ${nombre}${local}`,
+    `Hola, quiero más información para adquirir el ${nombre}`,
+    `Hola, me interesa el ${nombre}`,
   ];
 
   const mensajePrellenado =
@@ -228,7 +236,8 @@ export function generarCopys({
     titulos: elegir(titulos, LIMITES_COPY.titulos, vistos),
     descripciones: elegir(descripciones, LIMITES_COPY.descripciones, vistos),
     mensajePrellenado,
-    saludoWhatsApp: 'Hola, cuentanos que equipo te interesa y te asesoramos.',
+    // Este SI lo escribe la tienda: es el saludo que aparece antes del chat.
+    saludoWhatsApp: `¡Hola! Bienvenido a ${tienda}, es un gusto saludarte 😊`,
     // Bandera para que la interfaz pueda decir "esto lo escribio el sistema,
     // revisalo" en vez de presentarlo como si lo hubiera escrito alguien.
     generado: true,

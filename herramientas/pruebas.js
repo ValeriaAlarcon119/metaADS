@@ -414,9 +414,12 @@ for (const nombre of campanasDefinidas) {
       nom.normalizarCampo(anuncio.mensajePrellenado).includes(nom.normalizarCampo(anuncio.producto)),
       anuncio.mensajePrellenado,
     );
+    // Nombrar la sede es opcional: solo aporta donde hay varias tiendas en la
+    // misma ciudad. Lo que NUNCA puede pasar es repetir una palabra pegada
+    // ("Celred Neiva Neiva"), que fue un fallo real.
     comprobar(
-      `${etiqueta}: el prellenado nombra la sede`,
-      nom.normalizarCampo(anuncio.mensajePrellenado).includes(nom.normalizarCampo(sedeFicha.sede)),
+      `${etiqueta}: el prellenado no repite ninguna palabra seguida`,
+      !/\b(\w+)\s+\1\b/i.test(anuncio.mensajePrellenado),
       anuncio.mensajePrellenado,
     );
 
@@ -1051,6 +1054,79 @@ comprobar('El texto de un video habla de video', (() => {
 comprobar('Un producto de nombre largo sigue cabiendo en los titulos', (() => {
   const c = generarCopys({ producto: 'Samsung Galaxy S25 Ultra Edition', ciudad: 'Tuquerres', segmento: 'AND-CRED' });
   return c.titulos.length >= 3 && c.titulos.every((t) => t.length <= 40);
+})());
+
+/* --- El mensaje prellenado lo escribe el CLIENTE ----------------------- */
+
+comprobar('El prellenado va en primera persona, como lo enviaria el cliente', (() => {
+  const c = generarCopys({ producto: 'Samsung A17', codigoSede: 'NEIVA', segmento: 'AND-CRED' });
+  return c.mensajePrellenado.startsWith('Hola, quiero');
+})());
+
+comprobar('El prellenado nombra el equipo', (() => {
+  const c = generarCopys({ producto: 'Samsung A17', codigoSede: 'NEIVA', segmento: 'AND-CRED' });
+  return c.mensajePrellenado.includes('Samsung A17');
+})());
+
+// Este fue un fallo real: "Celred Neiva Neiva", porque la sede se llama igual
+// que la ciudad y se concatenaban las dos.
+comprobar('El prellenado NO repite la ciudad cuando la sede se llama igual', (() => {
+  const c = generarCopys({ producto: 'iPhone 15', codigoSede: 'NEIVA', sede: 'Neiva', segmento: 'IPH-CRED' });
+  return !/Neiva\s+Neiva/i.test(c.mensajePrellenado);
+})());
+
+comprobar('En una ciudad con varias tiendas si se nombra el local', (() => {
+  const c = generarCopys({ producto: 'iPhone 15', codigoSede: 'LA16', sede: 'La 16', segmento: 'IPH-CRED' });
+  return c.mensajePrellenado.includes('La 16');
+})());
+
+comprobar('El saludo previo SI lo dice la tienda', (() => {
+  const c = generarCopys({ producto: 'iPhone 15', codigoSede: 'NEIVA', segmento: 'IPH-CRED' });
+  return c.saludoWhatsApp.includes('Bienvenido');
+})());
+
+/* --- Dispositivos: los dos de entrada ---------------------------------- */
+
+comprobar('Sin decir nada, el targeting lleva movil Y escritorio', (() => {
+  const t = construirTargeting('NEIVA', {});
+  return t.device_platforms.includes('mobile') && t.device_platforms.includes('desktop');
+})());
+
+comprobar('Se puede dejar solo movil si se pide', (() => {
+  const t = construirTargeting('NEIVA', { dispositivos: ['mobile'] });
+  return t.device_platforms.length === 1 && t.device_platforms[0] === 'mobile';
+})());
+
+/* --- Talento de varias palabras ---------------------------------------- */
+
+comprobar('Un nombre de anuncio con "SOFIA MEDELLIN" es valido', (() => {
+  return nom.auditarNombre('ADS1 | NEI | IMG | REDMI NOTE 15 PRO | SOFIA MEDELLIN', 'anuncio').ok;
+})());
+comprobar('Con talento de una palabra tambien', nom.auditarNombre('ADS2 | VIC | VID | IPHONE 13 | SOFIA', 'anuncio').ok);
+comprobar('Y sin talento, que es lo normal', nom.auditarNombre('ADS1 | NEI | IMG | SAMSUNG A17', 'anuncio').ok);
+comprobar('El nombre con talento lo construye igual', (() => {
+  return (
+    nom.nombreAnuncio({ numero: 1, sede: 'NEIVA', formato: 'IMG', referencia: 'REDMI NOTE 15 PRO', talento: 'SOFIA MEDELLIN' }) ===
+    'ADS1 | NEI | IMG | REDMI NOTE 15 PRO | SOFIA MEDELLIN'
+  );
+})());
+
+/* --- Las mejoras, explicadas ------------------------------------------- */
+
+comprobar('Cada mejora apagada tiene explicacion en castellano', (() => {
+  const d = describirMejoras({ modoTexto: 'multiple', nivel: 'completo' });
+  const explicadas = d.grupos.flatMap((g) => g.funciones);
+  return explicadas.length === d.total;
+})());
+
+comprobar('Las mejoras vienen agrupadas por lo que hacen', (() => {
+  const d = describirMejoras({ modoTexto: 'multiple', nivel: 'completo' });
+  return d.grupos.length >= 3 && d.grupos.every((g) => g.etiqueta && g.funciones.length > 0);
+})());
+
+comprobar('Ninguna explicacion es solo el nombre tecnico', (() => {
+  const d = describirMejoras({ modoTexto: 'multiple', nivel: 'completo' });
+  return d.grupos.flatMap((g) => g.funciones).every((f) => f.que && f.que !== f.campo && /\s/.test(f.que));
 })());
 
 /* --- Direcciones oficiales: la fuente maestra -------------------------- */

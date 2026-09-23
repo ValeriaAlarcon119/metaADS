@@ -63,13 +63,24 @@ const CAMPOS_EXPANSION = Object.freeze(
   ),
 );
 
-/** Campos editables de cada anuncio. Solo texto: el creativo no se toca aqui. */
+/** Campos editables de cada anuncio. El archivo del creativo no se toca aqui. */
 const CAMPOS_ANUNCIO = Object.freeze({
+  // Identidad del anuncio
+  nombreManual: { tipo: 'texto', etiqueta: 'nombre del anuncio' },
+  referencia: { tipo: 'texto', etiqueta: 'referencia' },
+  producto: { tipo: 'texto', etiqueta: 'producto' },
+  talento: { tipo: 'texto', etiqueta: 'talento' },
+  // Contenido
   textosPrincipales: { tipo: 'lista-texto-libre', etiqueta: 'textos principales' },
   titulos: { tipo: 'lista-texto-libre', etiqueta: 'titulos' },
   descripciones: { tipo: 'lista-texto-libre', etiqueta: 'descripciones' },
   mensajePrellenado: { tipo: 'texto', etiqueta: 'mensaje prellenado' },
   saludoWhatsApp: { tipo: 'texto', etiqueta: 'saludo de WhatsApp' },
+});
+
+/** Campos editables del nombre del conjunto. */
+const CAMPOS_NOMBRE_CONJUNTO = Object.freeze({
+  nombreManual: { tipo: 'texto', etiqueta: 'nombre del conjunto' },
 });
 
 /**
@@ -292,7 +303,7 @@ export function aplicarAjustes(campana, ajustes = {}) {
     const etapa = cfg.conjuntos.length === 1 ? 'conjunto' : `conjunto ${indice + 1}`;
     const donde = `${etapa} → `;
 
-    for (const [clave, regla] of Object.entries(CAMPOS_CONJUNTO)) {
+    for (const [clave, regla] of Object.entries({ ...CAMPOS_CONJUNTO, ...CAMPOS_NOMBRE_CONJUNTO })) {
       if (edicion[clave] === undefined) continue;
       const valor = convertir(edicion[clave], regla, donde, errores);
       if (valor === undefined) continue;
