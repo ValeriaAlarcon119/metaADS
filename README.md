@@ -170,9 +170,12 @@ releyendo los objetos después de crearlos.
 3. **Destino solo WhatsApp.** `destination_type: WHATSAPP` en el conjunto y
    `WHATSAPP_MESSAGE` en el creativo. Los CTA de Messenger y de Instagram
    Direct están en una lista de prohibidos que hace fallar la creación.
-4. **Expansión de público apagada.** `advantage_audience=0`,
-   `targeting_optimization='none'`, relajación de lookalike y de públicos en 0,
-   edad/género/geo bloqueados, y `flexible_spec` nunca se envía.
+4. **Expansión de público apagada por defecto, y explicada.** Todos los
+   interruptores salen en 0. Se pueden encender desde el panel —es una decisión
+   legítima del que paga— pero **nunca se encienden solos**, cada uno viene con
+   su explicación de qué pasa si se activa, y encender cualquiera pide una
+   confirmación aparte. Después de crear se relee el conjunto y se compara con
+   lo aprobado.
 5. **Presupuesto en el conjunto (ABO).** La campaña se crea sin presupuesto
    propio, y la verificación falla si Meta le puso uno.
 6. **Aprobación humana.** `crearEstructuraCampana()` no pregunta nada; la pausa
@@ -216,6 +219,32 @@ src/
   builder.js                    Orquesta Campaña → Conjunto → Anuncios.
   config.js                     .env, credenciales y datos de la cuenta.
 ```
+
+---
+
+## Los interruptores de expansión, uno por uno
+
+En la etapa 2 el panel no enseña solo el nombre técnico: de cada interruptor
+dice cómo se llama en Ads Manager, **qué pasa de verdad si se enciende** y por
+qué está apagado. Todos se pueden marcar y desmarcar con el botón *Editar*.
+
+| Interruptor | En Ads Manager | Si se enciende |
+|---|---|---|
+| **Público Advantage+**<br>`targeting_automation.advantage_audience` | «Llegar a más personas cuando sea probable que mejore el rendimiento» | Meta deja de respetar la edad y el público que pusiste y muestra el anuncio a quien su modelo crea que puede escribir. La ubicación sí la respeta |
+| **Ampliar edad, género y ubicación**<br>`targeting_automation.individual_setting` | No tiene casilla propia: va dentro de Advantage+ | Meta puede salirse del rango de edad y del género. Es lo que hace que un conjunto pedido para 18-55 entregue hasta los 65 |
+| **Relajación de públicos similares**<br>`targeting_relaxation_types.lookalike` | «Expansión de público similar» | Si el conjunto usa un lookalike, Meta puede buscar parecidos más lejanos |
+| **Relajación de públicos personalizados**<br>`targeting_relaxation_types.custom_audience` | «Expansión de público personalizado» | Si el conjunto usa una lista de clientes, Meta puede salirse de ella |
+| **Intereses y comportamientos**<br>`flexible_spec` | «Segmentación detallada» | Segmentaría por intereses en vez de ir a público abierto. **No se marca aquí**: hay que decir *cuáles*, y eso se escribe en el archivo de la campaña |
+| **Reparto de presupuesto**<br>`is_adset_budget_sharing_enabled` | «Compartir presupuesto entre conjuntos» | Cada conjunto puede prestar hasta un 20 % de su presupuesto a otro. Con un conjunto por producto, el iPhone se come la plata del Android. Es de la **campaña**: se edita en la etapa 1 |
+
+La lista vive en `INTERRUPTORES_DE_EXPANSION` (`src/targeting.js`) y es la
+fuente única: de ahí salen los valores que se envían, la auditoría posterior y
+lo que se pinta en pantalla. Si se agrega uno nuevo, aparece solo en el panel.
+
+**Lo que Meta ya no deja apagar** va aparte, en amarillo: la orientación
+detallada Advantage. Eliminaron `targeting_optimization` de la API y responden
+que «se aplicará a tu conjunto de anuncios». El panel lo dice con esas palabras
+en vez de fingir que está apagada.
 
 ---
 
