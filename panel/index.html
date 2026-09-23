@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CELRED Ads Manager — Panel de aprobación</title>
+    <link rel="stylesheet" href="estilos.css" />
+  </head>
+
+  <body>
+    <header class="barra">
+      <div class="marca">
+        <span class="punto"></span>
+        <strong>CELRED ADS MANAGER</strong>
+        <span class="sutil">panel de aprobación · nomenclatura v1.2</span>
+      </div>
+      <div class="barra-derecha">
+        <span id="sello-borrador" class="sello sello-verde">TODO EN BORRADOR (PAUSED)</span>
+      </div>
+    </header>
+
+    <!-- ================== PANTALLA 0: elegir campaña ================== -->
+    <main id="pantalla-inicio" class="envoltorio">
+      <h1>¿Qué campaña quieres?</h1>
+      <p class="sutil">
+        Escríbelo como se lo dirías a alguien. Nada se envía a Meta hasta que apruebes las cuatro
+        etapas, y cuando se envía sale en borrador: no entrega impresiones ni gasta presupuesto.
+      </p>
+
+      <div id="aviso-credenciales" class="alerta alerta-amarilla oculto"></div>
+
+      <form id="dictado-form" class="dictado">
+        <textarea
+          id="dictado"
+          rows="3"
+          placeholder="campaña para la sede La 16 con el iPhone 16&#10;campaña para la victoria con android redmi 15, samsung a07 y samsung a17, y otra de iphone 15, iphone 13 y iphone 14"
+        ></textarea>
+        <div class="acciones">
+          <button type="submit" class="btn btn-primario">Interpretar</button>
+          <button type="button" class="btn" id="btn-ejemplos">Ver ejemplos</button>
+        </div>
+        <p class="pista">
+          Di la <strong>sede</strong> y los <strong>equipos con marca y modelo</strong>. El resto lo
+          deduce: el segmento por la marca, el formato por el archivo que encuentre en
+          <code>creativos/&lt;sede&gt;/</code> —y si hay foto y video del mismo equipo, crea los dos
+          anuncios—. Los conjuntos se separan solos: iPhone por un lado, Android por otro.
+        </p>
+      </form>
+
+      <div id="lectura" class="oculto"></div>
+
+      <h2 style="margin-top:34px">Campañas guardadas en <code>campanas/</code></h2>
+      <div id="lista-campanas" class="tarjetas"></div>
+
+      <p id="sin-campanas" class="sutil oculto">
+        No hay ninguna campaña guardada. No hace falta: puedes dictarlas arriba.
+      </p>
+    </main>
+
+    <!-- ================== ASISTENTE ================== -->
+    <main id="pantalla-asistente" class="envoltorio oculto">
+      <nav class="pasos" id="pasos">
+        <button class="paso" data-ir="1"><span class="numero">1</span> Campaña</button>
+        <button class="paso" data-ir="2"><span class="numero">2</span> Conjunto</button>
+        <button class="paso" data-ir="3"><span class="numero">3</span> Anuncios</button>
+        <button class="paso" data-ir="4"><span class="numero">4</span> Resumen</button>
+      </nav>
+
+      <div id="cinta-campana" class="cinta"></div>
+      <div id="avisos" class="oculto"></div>
+      <div id="cambios" class="oculto"></div>
+
+      <!-- ---------- ETAPA 1 ---------- -->
+      <section class="etapa" id="etapa-1">
+        <h2>Etapa 1 · La campaña</h2>
+        <div id="c1-vista"></div>
+
+        <form id="c1-form" class="editor oculto">
+          <h3>Editar el nombre de la campaña</h3>
+          <label>
+            Nombre
+            <input type="text" name="nombre" autocomplete="off" />
+          </label>
+          <p class="pista">
+            Patrón del manual: <code>C# | SEDE | DDMMAA</code>. Si no cumple, el sistema lo rechaza y
+            no se crea nada. El <code>C#</code> que pongas aquí se usa también en el nombre del
+            conjunto.
+          </p>
+
+          <fieldset>
+            <legend>Presupuesto de la campaña</legend>
+            <label class="casilla-larga">
+              <input type="checkbox" name="compartirPresupuesto" />
+              <span>
+                <strong>Dejar que los conjuntos se presten presupuesto entre sí</strong>
+                <span class="sutil">
+                  Cada conjunto puede prestar hasta un 20 % de su presupuesto a otro que Meta crea
+                  que rinde mejor. Con un conjunto por producto, el iPhone se puede comer la plata
+                  del Android. Desmarcado, cada conjunto gasta exactamente lo suyo.
+                </span>
+                <span class="tecnico"><code>is_adset_budget_sharing_enabled</code></span>
+              </span>
+            </label>
+          </fieldset>
+          <div class="acciones">
+            <button type="submit" class="btn btn-primario">Guardar y recalcular</button>
+            <button type="button" class="btn" data-cancelar-edicion="1">Descartar</button>
+          </div>
+        </form>
+
+        <footer class="acciones acciones-etapa">
+          <button class="btn btn-aprobar" data-aprobar="1">Aprobar y seguir</button>
+          <button class="btn" data-editar="1">Editar</button>
+          <button class="btn btn-peligro" data-cancelar>Cancelar</button>
+        </footer>
+      </section>
+
+      <!-- ---------- ETAPA 2 ---------- -->
+      <section class="etapa oculto" id="etapa-2">
+        <h2 id="c2-titulo">Etapa 2 · El conjunto de anuncios</h2>
+        <div id="c2-vista"></div>
+
+        <form id="c2-form" class="editor oculto">
+          <h3>Editar los conjuntos</h3>
+          <div id="c2-campos"></div>
+
+          <p class="pista">
+            El número de WhatsApp no se edita aquí: sale de <code>lineas.xlsx</code> según la sede.
+            La expansión Advantage+ tampoco: está apagada por código y no se puede encender desde el
+            panel.
+          </p>
+
+          <div class="acciones">
+            <button type="submit" class="btn btn-primario">Guardar y recalcular</button>
+            <button type="button" class="btn" data-cancelar-edicion="2">Descartar</button>
+          </div>
+        </form>
+
+        <footer class="acciones acciones-etapa">
+          <button class="btn btn-aprobar" data-aprobar="2">Aprobar y seguir</button>
+          <button class="btn" data-editar="2">Editar</button>
+          <button class="btn btn-peligro" data-cancelar>Cancelar</button>
+        </footer>
+      </section>
+
+      <!-- ---------- ETAPA 3 ---------- -->
+      <section class="etapa oculto" id="etapa-3">
+        <h2 id="c3-titulo">Etapa 3 · Los anuncios y sus creativos</h2>
+        <div id="c3-vista"></div>
+
+        <form id="c3-form" class="editor oculto">
+          <h3>Editar los textos</h3>
+          <div id="c3-campos"></div>
+          <p class="pista">
+            El archivo del creativo no se cambia desde aquí: se cambia moviendo la pieza en
+            <code>creativos/&lt;sede&gt;/</code> y editando el archivo de la campaña. Es el error más
+            caro que existe —pautar una sede con la pieza de otra— y no debe poder hacerse desde un
+            formulario.
+          </p>
+          <div class="acciones">
+            <button type="submit" class="btn btn-primario">Guardar y recalcular</button>
+            <button type="button" class="btn" data-cancelar-edicion="3">Descartar</button>
+          </div>
+        </form>
+
+        <footer class="acciones acciones-etapa">
+          <button class="btn btn-aprobar" data-aprobar="3">Aprobar y seguir</button>
+          <button class="btn" data-editar="3">Editar</button>
+          <button class="btn btn-peligro" data-cancelar>Cancelar</button>
+        </footer>
+      </section>
+
+      <!-- ---------- ETAPA 4 ---------- -->
+      <section class="etapa oculto" id="etapa-4">
+        <h2>Etapa 4 · Resumen final</h2>
+        <div id="c4-vista"></div>
+
+        <div id="c4-bloqueo" class="alerta alerta-amarilla oculto"></div>
+
+        <footer class="acciones acciones-etapa">
+          <button class="btn btn-enviar" id="btn-enviar">
+            Enviar a Meta en Borrador (PAUSED)
+          </button>
+          <button class="btn" data-ir="1">Volver a revisar</button>
+          <button class="btn btn-peligro" data-cancelar>Cancelar</button>
+        </footer>
+      </section>
+
+      <!-- ---------- CREACIÓN ---------- -->
+      <section class="etapa oculto" id="etapa-creando">
+        <h2 id="creando-titulo">Creando en Meta…</h2>
+        <div id="bitacora" class="bitacora"></div>
+        <div id="resultado"></div>
+        <footer class="acciones acciones-etapa oculto" id="acciones-final">
+          <button class="btn btn-primario" data-reiniciar>Revisar otra campaña</button>
+        </footer>
+      </section>
+    </main>
+
+    <div id="cargando" class="cargando oculto"><div class="giro"></div></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

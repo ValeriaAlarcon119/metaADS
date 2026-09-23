@@ -1,0 +1,45 @@
+# ============================================================
+#  Lo que NO va al repositorio
+# ============================================================
+
+# --- SECRETOS -----------------------------------------------
+# El .env lleva el token de Meta, que da control total sobre las dos cuentas
+# publicitarias. Nunca va a git. Si alguna vez se sube por error, no basta con
+# borrarlo: hay que REVOCAR el token, porque queda en el historial.
+.env
+.env.*
+!.env.ejemplo
+
+# --- DATOS DE LA EMPRESA ------------------------------------
+# lineas.xlsx lleva los telefonos de las 13 sedes y el nombre de cada lider.
+# Son datos personales y de negocio: no tienen por que estar en un repositorio.
+# El sistema lo lee del disco; cada equipo pone su copia.
+lineas.xlsx
+*.xlsx
+
+# --- PIEZAS PUBLICITARIAS -----------------------------------
+# Los creativos son archivos pesados (un video puede pasar de 80 MB) y git no
+# los maneja bien: cada version queda guardada entera para siempre. Viven en
+# el Drive del equipo creativo, que es donde el manual (punto 12) dice que
+# vivan. Las carpetas si se conservan, vacias, con su .gitkeep.
+creativos/**/*
+!creativos/**/.gitkeep
+
+# --- DEPENDENCIAS Y RUIDO -----------------------------------
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Archivos temporales de las pruebas
+_*.js
+vista-previa-panel.html
+
+# Sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp
