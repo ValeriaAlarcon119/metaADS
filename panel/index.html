@@ -8,14 +8,58 @@
   </head>
 
   <body>
+    <!-- ================== ICONOS ==================
+         Una sola familia (trazo de 2px, estilo Lucide), en linea. Sin
+         libreria: no hay descarga, no hay bundle y funciona sin internet. -->
+    <svg style="display: none" aria-hidden="true">
+      <symbol id="ico-tema" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4" />
+      </symbol>
+      <symbol id="ico-luna" viewBox="0 0 24 24">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+      </symbol>
+      <symbol id="ico-diana" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+      </symbol>
+      <symbol id="ico-capas" viewBox="0 0 24 24">
+        <path d="m12 2 9 5-9 5-9-5 9-5ZM3 17l9 5 9-5M3 12l9 5 9-5" />
+      </symbol>
+      <symbol id="ico-imagen" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" />
+        <path d="m21 15-5-5L5 21" />
+      </symbol>
+      <symbol id="ico-check" viewBox="0 0 24 24"><path d="m20 6-11 11-5-5" /></symbol>
+      <symbol id="ico-aviso" viewBox="0 0 24 24">
+        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+        <path d="M12 9v4M12 17h.01" />
+      </symbol>
+      <symbol id="ico-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+      </symbol>
+      <symbol id="ico-equis" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+      <symbol id="ico-enviar" viewBox="0 0 24 24">
+        <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />
+      </symbol>
+    </svg>
+
     <header class="barra">
       <div class="marca">
-        <span class="punto"></span>
-        <strong>CELRED ADS MANAGER</strong>
-        <span class="sutil">panel de aprobación · nomenclatura v1.2</span>
+        <!-- El logotipo real: CEL naranja, RED rojo. -->
+        <span class="logotipo">CEL<em>RED</em></span>
+        <span class="sutil">Gestor de pauta · nomenclatura v1.2</span>
       </div>
       <div class="barra-derecha">
         <span id="sello-borrador" class="sello sello-verde">TODO EN BORRADOR (PAUSED)</span>
+        <button
+          id="btn-tema"
+          class="btn btn-fantasma btn-icono"
+          type="button"
+          title="Cambiar entre modo claro y oscuro"
+          aria-label="Cambiar tema"
+        >
+          <svg class="i" aria-hidden="true"><use href="#ico-tema" /></svg>
+        </button>
       </div>
     </header>
 

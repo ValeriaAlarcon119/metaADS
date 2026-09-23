@@ -69,6 +69,50 @@ function cargando(activo) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Tema claro y oscuro                                                       */
+/* -------------------------------------------------------------------------- */
+/**
+ *  Arranca con el que tenga puesto el sistema y recuerda la eleccion. El
+ *  atributo va en <html>, no en <body>, para que el color de fondo del
+ *  navegador cambie tambien y no se vea un destello blanco al recargar.
+ */
+
+function temaGuardado() {
+  try {
+    return localStorage.getItem('celred-tema');
+  } catch {
+    return null; // modo privado o almacenamiento bloqueado
+  }
+}
+
+function aplicarTema(tema) {
+  document.documentElement.dataset.tema = tema;
+
+  const icono = $('#btn-tema')?.querySelector('use');
+  if (icono) icono.setAttribute('href', tema === 'claro' ? '#ico-luna' : '#ico-tema');
+
+  const boton = $('#btn-tema');
+  if (boton) {
+    boton.title = tema === 'claro' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro';
+  }
+
+  try {
+    localStorage.setItem('celred-tema', tema);
+  } catch {
+    /* si no se puede guardar, al menos funciona en esta sesion */
+  }
+}
+
+function arrancarTema() {
+  const prefiereClaro = window.matchMedia?.('(prefers-color-scheme: light)').matches;
+  aplicarTema(temaGuardado() || (prefiereClaro ? 'claro' : 'oscuro'));
+
+  $('#btn-tema')?.addEventListener('click', () => {
+    aplicarTema(document.documentElement.dataset.tema === 'claro' ? 'oscuro' : 'claro');
+  });
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Modal                                                                     */
 /* -------------------------------------------------------------------------- */
 /**
@@ -1892,5 +1936,6 @@ function reiniciar() {
   cargarInicio();
 }
 
+arrancarTema();
 conectar();
 cargarInicio();
