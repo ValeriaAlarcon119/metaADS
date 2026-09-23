@@ -23,6 +23,13 @@ const estado = {
   plan: null,
   firma: '',
   ajustes: { campana: {}, conjuntos: [] },
+  // El objetivo se elige en la primera pantalla, antes que nada.
+  objetivo: '',
+  catalogo: [],
+  regiones: [],
+  tiposRegionales: [],
+  region: '',
+  tipoRegional: '',
   // Se pone en true solo cuando alguien confirma el aviso de nomenclatura.
   nombresForzados: false,
   aprobaciones: { campana: false, conjunto: false, anuncios: false, final: false },
@@ -206,9 +213,157 @@ const fila = (etiqueta, valor, nota = '') =>
 /*  Pantalla 0: elegir campana                                                */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/*  Paso 1: el objetivo                                                       */
+/* -------------------------------------------------------------------------- */
+
+async function cargarObjetivos() {
+  const datos = await pedir('/api/objetivos');
+  estado.catalogo = datos.catalogo;
+  estado.regiones = datos.regiones;
+  estado.tiposRegionales = datos.tiposRegionales;
+  if (!estado.objetivo) estado.objetivo = datos.porDefecto;
+  pintarObjetivos();
+}
+
+/** La ficha del objetivo elegido, o null. */
+function objetivoElegido() {
+  return estado.catalogo.flatMap((o) => o.opciones).find((x) => x.codigo === estado.objetivo) || null;
+}
+
+function pintarObjetivos() {
+  $('#objetivos').innerHTML = estado.catalogo
+    .map((o) => {
+      // Un objetivo que Celred no puede usar sale igual, apagado y con el
+      // motivo. Esconderlo dejaria la duda de por que no esta.
+      if (!o.disponible) {
+        return `
+        <div class="objetivo" disabled>
+          <div class="objetivo-cabeza">
+            <span class="objetivo-nombre">${esc(o.etiqueta)}</span>
+            <span class="sello sello-gris">NO DISPONIBLE</span>
+          </div>
+          <div class="objetivo-para">${esc(o.para)}</div>
+          <div class="objetivo-para"><strong>${esc(o.porQueNo)}</strong></div>
+        </div>`;
+      }
+
+      const alguna = o.opciones.some((x) => x.codigo === estado.objetivo);
+
+      return `
+        <div class="objetivo ${alguna ? 'elegido' : ''}">
+          <div class="objetivo-cabeza">
+            <span class="objetivo-nombre">${esc(o.etiqueta)}</span>
+            <span class="tecnico"><code>${esc(o.codigo)}</code></span>
+          </div>
+          <div class="objetivo-para">${esc(o.para)}</div>
+          <div class="objetivo-opciones">
+            ${o.opciones
+              .map((x) => {
+                const elegida = x.codigo === estado.objetivo;
+                return `
+                <button type="button" class="objetivo-opcion ${elegida ? 'elegida' : ''}"
+                        data-objetivo="${esc(x.codigo)}">
+                  <span class="marca-elegido">${elegida ? '●' : '○'}</span>
+                  <span>
+                    <b>${esc(x.etiqueta)}</b>
+                    <span class="sutil">${esc(x.queConsigue)}</span>
+                    <span class="sutil">
+                      Prefijo <code>${esc(x.prefijo)}#</code> ·
+                      ${x.usaWhatsApp ? 'usa WhatsApp' : 'sin WhatsApp'} ·
+                      ${x.ensayado ? '✓ ensayado en la cuenta' : '⚠ sin ensayar'}
+                    </span>
+                  </span>
+                </button>`;
+              })
+              .join('')}
+          </div>
+        </div>`;
+    })
+    .join('');
+
+  // Una campana regional (R#) necesita region y tipo: sin ellos el nombre no
+  // se puede armar. Solo aparece cuando hace falta.
+  const ficha = objetivoElegido();
+  if (ficha?.ambito === 'regional') {
+    const opciones = (lista, actual, texto = (v) => v) =>
+      lista
+        .map((v) => {
+          const codigo = typeof v === 'string' ? v : v.codigo;
+          return `<option value="${esc(codigo)}"${codigo === actual ? ' selected' : ''}>${esc(texto(v))}</option>`;
+        })
+        .join('');
+
+    $('#objetivos').insertAdjacentHTML(
+      'beforeend',
+      `<div class="editor" style="grid-column:1/-1;margin:4px 0 0">
+         <h3>Esta campaña es regional</h3>
+         <p class="pista">
+           Las regionales se nombran <code>R# | REGION | TIPO | DDMMAA</code>, así que hay que decir
+           la región y el tipo.
+         </p>
+         <div class="rejilla">
+           <label>Región
+             <select id="region">${opciones(estado.regiones, estado.region)}</select></label>
+           <label>Tipo
+             <select id="tipo-regional">${opciones(
+               estado.tiposRegionales,
+               estado.tipoRegional,
+               (v) => `${v.codigo} — ${v.que}`,
+             )}</select></label>
+         </div>
+       </div>`,
+    );
+
+    $('#region').addEventListener('change', (e) => {
+      estado.region = e.target.value;
+    });
+    $('#tipo-regional').addEventListener('change', (e) => {
+      estado.tipoRegional = e.target.value;
+    });
+
+    estado.region ||= estado.regiones[0];
+    estado.tipoRegional ||= estado.tiposRegionales[0].codigo;
+  }
+
+  $$('[data-objetivo]').forEach((b) =>
+    b.addEventListener('click', () => elegirObjetivo(b.dataset.objetivo)),
+  );
+}
+
+async function elegirObjetivo(codigo) {
+  const ficha = estado.catalogo.flatMap((o) => o.opciones).find((x) => x.codigo === codigo);
+
+  // Un objetivo sin ensayar se puede elegir, pero avisando: lo que no puede
+  // es que alguien lo use creyendo que esta comprobado.
+  if (ficha && !ficha.ensayado) {
+    const sigue = await preguntar({
+      titulo: `"${ficha.etiqueta}" no se ha ensayado todavía`,
+      tipo: 'aviso',
+      cuerpo:
+        `<p>${esc(ficha.notaDeEnsayo)}</p>` +
+        '<p>Puedes usarlo, pero <strong>ensáyalo antes de crear</strong>: manda los parámetros a Meta ' +
+        'y te dice si los acepta, <strong>sin crear nada</strong>.</p>' +
+        `<div class="modal-formato"><div><b>Comando</b><code>npm run validar &lt;campaña&gt;</code></div></div>` +
+        `<p class="sutil">El único ensayado contra esta cuenta es «Mensajes a WhatsApp».</p>`,
+      si: 'Usarlo igual',
+      no: 'Elegir otro',
+    });
+    if (!sigue) return;
+  }
+
+  estado.objetivo = codigo;
+  pintarObjetivos();
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Pantalla 0: elegir campana                                                */
+/* -------------------------------------------------------------------------- */
+
 async function cargarInicio() {
   cargando(true);
   try {
+    await cargarObjetivos();
     const datos = await pedir('/api/estado');
     estado.puedePublicar = datos.puedePublicar;
 
@@ -389,6 +544,9 @@ async function planificar({ nombresForzados = estado.nombresForzados } = {}) {
         borrador: estado.borrador || undefined,
         ajustes: estado.ajustes,
         nombresForzados,
+        objetivo: estado.objetivo || undefined,
+        region: estado.region || undefined,
+        tipoRegional: estado.tipoRegional || undefined,
       }),
     });
 

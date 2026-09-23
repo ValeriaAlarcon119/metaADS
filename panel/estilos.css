@@ -212,6 +212,140 @@ h3 {
   margin-top: 24px;
 }
 
+/* --------------------------- pasos iniciales ----------------------------- */
+
+.paso-inicial {
+  margin-top: 30px;
+}
+
+.titulo-paso {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 19px;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+}
+
+.numero-paso {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: var(--azul);
+  color: #06121f;
+  font-size: 14px;
+  font-weight: 700;
+  flex: none;
+}
+
+/* ---------------------------- objetivos ---------------------------------- */
+
+.objetivos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.objetivo {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 17px;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.objetivo:hover:not([disabled]) {
+  border-color: var(--azul);
+  background: var(--panel-2);
+}
+
+.objetivo.elegido {
+  border-color: var(--verde);
+  background: var(--verde-fondo);
+}
+
+.objetivo[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.objetivo-cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.objetivo-nombre {
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+.objetivo-para {
+  font-size: 13px;
+  color: var(--sutil);
+  line-height: 1.5;
+}
+
+.objetivo-opciones {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.objetivo-opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+  width: 100%;
+}
+
+.objetivo-opcion:hover {
+  border-color: var(--azul);
+}
+
+.objetivo-opcion.elegida {
+  border-color: var(--verde);
+  background: var(--verde-fondo);
+}
+
+.objetivo-opcion b {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+
+.objetivo-opcion .sutil {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.marca-elegido {
+  color: var(--verde);
+  font-weight: 700;
+  flex: none;
+}
+
 /* ------------------------------ dictado ---------------------------------- */
 
 .dictado {

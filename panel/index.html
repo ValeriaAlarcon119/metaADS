@@ -29,6 +29,20 @@
 
       <div id="aviso-credenciales" class="alerta alerta-amarilla oculto"></div>
 
+      <!-- ---------- PASO 1: el objetivo ---------- -->
+      <section class="paso-inicial">
+        <h2 class="titulo-paso"><span class="numero-paso">1</span> ¿Qué quieres conseguir?</h2>
+        <p class="sutil">
+          Es lo primero que pregunta Meta y de ahí sale todo lo demás: el prefijo del nombre
+          (<code>C#</code> o <code>R#</code>), cómo optimiza la entrega y si hace falta número de
+          WhatsApp. Estos son los seis objetivos oficiales de Meta.
+        </p>
+        <div id="objetivos" class="objetivos"></div>
+      </section>
+
+      <section class="paso-inicial">
+        <h2 class="titulo-paso"><span class="numero-paso">2</span> ¿Qué campaña?</h2>
+
       <form id="dictado-form" class="dictado">
         <textarea
           id="dictado"
@@ -52,12 +66,13 @@
 
       <div id="lectura" class="oculto"></div>
 
-      <h2 style="margin-top:34px">Campañas guardadas en <code>campanas/</code></h2>
-      <div id="lista-campanas" class="tarjetas"></div>
+        <h3 style="margin-top:28px">O una campaña guardada en <code>campanas/</code></h3>
+        <div id="lista-campanas" class="tarjetas"></div>
 
-      <p id="sin-campanas" class="sutil oculto">
-        No hay ninguna campaña guardada. No hace falta: puedes dictarlas arriba.
-      </p>
+        <p id="sin-campanas" class="sutil oculto">
+          No hay ninguna campaña guardada. No hace falta: puedes dictarlas arriba.
+        </p>
+      </section>
     </main>
 
     <!-- ================== ASISTENTE ================== -->

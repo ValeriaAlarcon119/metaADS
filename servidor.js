@@ -39,11 +39,11 @@ import { extname, join, resolve } from 'node:path';
 import { planificarEstructura, crearEstructuraCampana, verificarEstructura } from './src/builder.js';
 import { describirTargeting, SEDES } from './src/targeting.js';
 import { ACCESS_TOKEN, GRAPH_BASE, PAGE_ID, credencialesFaltantes, formatearMoneda } from './src/config.js';
-import { SEGMENTOS } from './src/nomenclatura.js';
+import { SEGMENTOS, REGIONES, TIPOS_REGIONAL } from './src/nomenclatura.js';
 import { listarCampanas, cargarCampana, LIMITES_COPY } from './src/campanas.js';
 import { aplicarAjustes } from './src/ajustes.js';
 import { interpretar } from './src/interprete.js';
-import { listarParaLaInterfaz } from './src/objetivos.js';
+import { listarParaLaInterfaz, catalogoParaLaInterfaz, OBJETIVO_POR_DEFECTO } from './src/objetivos.js';
 import { RAIZ, CARPETA_CREATIVOS } from './src/creativos-sede.js';
 import { MAX_OPCIONES_TEXTO } from './src/creatives.js';
 
@@ -192,6 +192,11 @@ async function prepararPlan({
   ajustes = {},
   sinMeta = false,
   nombresForzados = false,
+  // El objetivo que se eligio en la primera pantalla. Si no viene, manda el
+  // que traiga el archivo de la campana.
+  objetivo = '',
+  region = '',
+  tipoRegional = '',
 }) {
   const base = borrador
     ? borradores.get(borrador)
@@ -205,6 +210,9 @@ async function prepararPlan({
 
   const plan = await planificarEstructura({
     ...cfg,
+    objetivo: objetivo || cfg.objetivo,
+    region: region || cfg.region || '',
+    tipoRegional: tipoRegional || cfg.tipoRegional || '',
     // Desde el panel SIEMPRE borrador. Salir en vivo no se puede pedir por
     // HTTP: eso vive en la linea de comandos, con doble confirmacion.
     estado: 'PAUSED',
@@ -581,6 +589,9 @@ async function apiPlan(req, res) {
     ajustes: cuerpo.ajustes || {},
     sinMeta,
     nombresForzados: cuerpo.nombresForzados,
+    objetivo: cuerpo.objetivo,
+    region: cuerpo.region,
+    tipoRegional: cuerpo.tipoRegional,
   });
 
   responderJson(res, 200, {
@@ -829,7 +840,17 @@ async function manejar(req, res) {
   try {
     if (ruta === '/api/estado' && req.method === 'GET') return await apiEstado(res);
     if (ruta === '/api/objetivos' && req.method === 'GET') {
-      return responderJson(res, 200, { ok: true, objetivos: listarParaLaInterfaz() });
+      return responderJson(res, 200, {
+        ok: true,
+        // Agrupado como Ads Manager: los seis oficiales de Meta y, dentro,
+        // las configuraciones concretas de Celred.
+        catalogo: catalogoParaLaInterfaz(),
+        objetivos: listarParaLaInterfaz(),
+        porDefecto: OBJETIVO_POR_DEFECTO,
+        // Para los objetivos regionales (R#), que necesitan region y tipo.
+        regiones: REGIONES,
+        tiposRegionales: Object.entries(TIPOS_REGIONAL).map(([codigo, que]) => ({ codigo, que })),
+      });
     }
     if (ruta === '/api/interpretar' && req.method === 'POST') return await apiInterpretar(req, res);
     if (ruta === '/api/plan' && req.method === 'POST') return await apiPlan(req, res);
