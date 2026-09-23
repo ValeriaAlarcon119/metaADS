@@ -713,6 +713,9 @@ export function interpretar(texto, opciones = {}) {
             producto: producto.producto,
             ciudad: ciudadReal,
             sede: ficha.sede,
+            // El codigo es lo que da la direccion oficial. Sin el, los copys
+            // salen sin direccion en vez de con una equivocada.
+            codigoSede: ficha.codigo,
             segmento,
             formato: tipo,
           }),

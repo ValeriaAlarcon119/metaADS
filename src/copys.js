@@ -14,16 +14,23 @@
  *  que genera hablan solo de lo que SI es verificable desde aqui:
  *
  *    - el nombre del producto
- *    - la tienda y la ciudad
+ *    - la tienda, la ciudad y la DIRECCION OFICIAL (src/direcciones.js)
  *    - las formas de pago que dice el segmento del conjunto
  *    - la invitacion a escribir por WhatsApp
  *
  *  Nunca inventa megapixeles, milliamperios, pulgadas ni precios. Un texto
  *  publicitario con una cifra falsa es un problema de verdad, no un detalle.
  *
- *  Ademas, por decision del cliente, no nombra financieras (Addi,
- *  Sistecredito, Banco de Bogota), no pone capacidad en GB y no menciona a
- *  personas en camara.
+ *  CERO PROMOCIONES (decision del cliente, 23/09/2026)
+ *
+ *  No se nombra ningun sorteo, descuento, rifa, fecha de campana, "sin
+ *  inicial", "aplica reportado" ni condicion de credito concreta. Nada de eso
+ *  esta en ninguna fuente de datos del sistema, asi que escribirlo seria
+ *  inventarlo. Cuando exista un archivo de promociones vigentes se conecta
+ *  aqui; hasta entonces, los copys venden el equipo y la tienda.
+ *
+ *  Tampoco nombra financieras (Addi, Sistecredito, Banco de Bogota), ni pone
+ *  capacidad en GB, ni menciona a personas en camara.
  *
  *  SON UN PUNTO DE PARTIDA. La etapa 3 del panel existe justo para esto: se
  *  leen, se corrigen y se les mete lo que el asesor sabe del equipo.
@@ -31,6 +38,7 @@
  */
 
 import { LIMITES_COPY } from './campanas.js';
+import { direccionDeSede } from './direcciones.js';
 
 /* -------------------------------------------------------------------------- */
 /*  Que permite decir cada segmento                                           */
@@ -63,12 +71,26 @@ const cabe = (texto, limite) => texto.length <= limite;
  * descripcion identicos ("Escribenos por WhatsApp") se verian como la misma
  * frase repetida dos veces en el mismo anuncio, que queda mal.
  */
-function elegir(candidatos, limite, vistos, cuantos = 5) {
+function elegir(candidatos, limite, vistos, { cuantos = 5, estricto = true } = {}) {
   const elegidos = [];
 
   for (const texto of candidatos) {
-    const limpio = String(texto).replace(/\s+/g, ' ').trim();
-    if (!limpio || vistos.has(limpio) || !cabe(limpio, limite)) continue;
+    // Los saltos de linea SI se respetan: son parte del formato del anuncio.
+    // Solo se colapsan los espacios dentro de cada renglon.
+    const limpio = String(texto)
+      .split('\n')
+      .map((l) => l.replace(/[^\S\n]+/g, ' ').trim())
+      .join('\n')
+      .trim();
+
+    if (!limpio || vistos.has(limpio)) continue;
+
+    // En titulos y descripciones el limite es duro: Meta los recorta y un
+    // titulo cortado a la mitad queda mal. En el texto principal es solo una
+    // guia — el feed recorta pero el texto completo se ve al desplegar, y es
+    // el formato que usa Celred hoy.
+    if (estricto && !cabe(limpio, limite)) continue;
+
     vistos.add(limpio);
     elegidos.push(limpio);
     if (elegidos.length === cuantos) break;
@@ -93,64 +115,89 @@ function elegir(candidatos, limite, vistos, cuantos = 5) {
  * @returns {{textosPrincipales:string[], titulos:string[], descripciones:string[],
  *            mensajePrellenado:string, saludoWhatsApp:string, generado:boolean}}
  */
-export function generarCopys({ producto, ciudad, sede = '', segmento = 'MIXTO', formato = 'IMG' }) {
+export function generarCopys({
+  producto,
+  ciudad,
+  sede = '',
+  codigoSede = '',
+  segmento = 'MIXTO',
+  formato = 'IMG',
+}) {
   const nombre = String(producto || '').trim();
   if (!nombre) throw new Error('copys: falta el nombre del producto.');
 
-  const lugar = String(ciudad || '').trim();
   const pago = PAGO_POR_SEGMENTO[segmento] || PAGO_POR_SEGMENTO.MIXTO;
   const esVideo = String(formato).toUpperCase() === 'VID';
+
+  // La direccion sale SIEMPRE del archivo maestro, nunca del texto libre.
+  // Si la sede no la tiene configurada, los copys salen sin ella: es
+  // preferible un anuncio sin direccion que uno con la direccion de otra
+  // tienda.
+  const oficial = codigoSede ? direccionDeSede(codigoSede) : null;
+  const lugar = oficial?.ciudad || String(ciudad || '').trim();
 
   // La tienda se nombra "Celred Pasto". El nombre de la sede (La 16, CC
   // Zafiro) se guarda para el mensaje prellenado, que es donde de verdad
   // ayuda: le dice al asesor a que local va el cliente.
   const tienda = lugar ? `Celred ${lugar}` : 'Celred';
 
-  /* --- Textos principales (limite comodo 125) ---------------------------- */
+  // La linea de direccion va en su propio renglon, como en los anuncios que
+  // ya corren. Sin direccion configurada, simplemente no aparece.
+  const lineaDireccion = oficial ? `📍 ${oficial.direccion}, ${oficial.ciudad}.` : '';
+  const conDireccion = (texto) => (lineaDireccion ? `${texto}\n\n${lineaDireccion}` : texto);
+
+  /* --- Textos principales ------------------------------------------------ */
+  // Los dos primeros llevan la direccion y pasan de 125 caracteres a
+  // proposito: es el formato que usa Celred hoy. Los de mas abajo son cortos
+  // para las ubicaciones donde el feed recorta.
 
   const textos = [
-    esVideo
-      ? `Mira el ${nombre} en video. Esta en ${tienda}: escribenos por WhatsApp y te contamos precio y formas de pago.`
-      : `${nombre} en ${tienda}. Escribenos por WhatsApp y te contamos precio y formas de pago.`,
+    conDireccion(
+      esVideo
+        ? `🎬 Mira el ${nombre} en video y llévatelo de ${tienda}.\n📲 Escríbenos por WhatsApp y te contamos precio y formas de pago.`
+        : `🔥 El ${nombre} te está esperando en ${tienda}.\n📲 Escríbenos por WhatsApp y te contamos precio y formas de pago.`,
+    ),
 
-    `¿Estas buscando el ${nombre}? En ${tienda} te asesoramos sin compromiso. Escribenos por WhatsApp.`,
+    conDireccion(
+      pago.credito
+        ? `💥 ¿Quieres estrenar el ${nombre}?\n✅ De contado o a crédito en ${tienda}.\n📩 Escríbenos y te asesoramos sin compromiso.`
+        : `💥 ¿Quieres estrenar el ${nombre}?\n✅ De contado en ${tienda}.\n📩 Escríbenos y te asesoramos sin compromiso.`,
+    ),
 
-    pago.credito
-      ? `${nombre} de contado o a credito en ${tienda}. Cotiza por WhatsApp y te explicamos las opciones.`
-      : `${nombre} de contado en ${tienda}. Cotiza por WhatsApp y te confirmamos precio.`,
+    `🚀 ${nombre} en ${tienda}. Escríbenos por WhatsApp y resolvemos todas tus dudas.`,
 
-    `Ven a ver el ${nombre} a ${tienda}. Lo pruebas en tienda antes de llevarlo. Agenda por WhatsApp.`,
+    `📱 Ven a ver el ${nombre} en ${tienda}. Lo pruebas en tienda antes de llevarlo.`,
 
     pago.retoma
-      ? `Recibimos tu celular usado como parte de pago del ${nombre}. Consulta el avaluo por WhatsApp.`
-      : `${nombre} con garantia y asesoria en ${tienda}. Consulta disponibilidad por WhatsApp.`,
+      ? `🔄 Recibimos tu celular usado como parte de pago del ${nombre}. Consulta el avalúo por WhatsApp.`
+      : `✅ ${nombre} con garantía y asesoría en ${tienda}. Consulta disponibilidad por WhatsApp.`,
 
-    // Reservas, por si alguna de las de arriba se pasa de 125 con un nombre largo.
-    `${nombre} en ${tienda}. Escribenos por WhatsApp.`,
+    // Reservas, por si alguna de las de arriba no cabe con un nombre largo.
+    `${nombre} en ${tienda}. Escríbenos por WhatsApp.`,
     `Consulta el ${nombre} en ${tienda} por WhatsApp.`,
   ];
 
   /* --- Titulos (limite comodo 40) ---------------------------------------- */
 
   const titulos = [
-    `${nombre} en Celred`,
-    lugar ? `${nombre} en ${lugar}` : `${nombre} disponible`,
-    pago.credito ? 'De contado o a credito' : 'Consulta el precio de contado',
-    'Escribenos por WhatsApp',
-    pago.retoma ? 'Recibimos tu equipo usado' : 'Consulta disponibilidad',
+    `${nombre} 🔥`,
+    lugar ? `${nombre} en ${lugar}` : `${nombre} en Celred`,
+    pago.credito ? '💥 De contado o a crédito' : '💥 Consulta el precio',
+    '📲 ¡Escríbenos YA!',
+    pago.retoma ? '🔄 Recibimos tu usado' : '🚀 ¡Estrena en Celred!',
     // Reservas para nombres largos.
     nombre,
-    'Asesoria en tienda',
+    '📍 ¡Visítanos en tienda!',
   ];
 
   /* --- Descripciones (limite comodo 30) ---------------------------------- */
 
   const descripciones = [
-    lugar ? `Tienda Celred en ${lugar}` : 'Tienda Celred',
-    'Cotiza por WhatsApp',
-    pago.credito ? 'Contado o credito' : 'Precio de contado',
-    'Consulta disponibilidad',
-    pago.retoma ? 'Recibimos tu usado' : 'Garantia y asesoria',
+    lugar ? `Celred ${lugar} 📍` : 'Tienda Celred 📍',
+    '📲 Cotiza por WhatsApp',
+    pago.credito ? '💳 Contado o crédito' : '💵 Precio de contado',
+    '✅ Consulta disponibilidad',
+    pago.retoma ? '🔄 Recibimos tu usado' : '🛡️ Garantía y asesoría',
     // Reservas.
     'Pregunta por tu equipo',
     'Te asesoramos en tienda',
@@ -164,9 +211,9 @@ export function generarCopys({ producto, ciudad, sede = '', segmento = 'MIXTO', 
   const vio = esVideo ? 'el video' : 'el anuncio';
 
   const prellenados = [
-    `Hola ${donde}, vi ${vio} del ${nombre} y quiero informacion de precio y formas de pago.`,
-    `Hola ${donde}, vi ${vio} del ${nombre} y quiero informacion.`,
-    `Hola, vi ${vio} del ${nombre} y quiero informacion.`,
+    `Hola ${donde}, vi ${vio} del ${nombre} y quiero información de precio y formas de pago.`,
+    `Hola ${donde}, vi ${vio} del ${nombre} y quiero información.`,
+    `Hola, vi ${vio} del ${nombre} y quiero información.`,
   ];
 
   const mensajePrellenado =
@@ -177,7 +224,7 @@ export function generarCopys({ producto, ciudad, sede = '', segmento = 'MIXTO', 
   const vistos = new Set();
 
   return {
-    textosPrincipales: elegir(textos, LIMITES_COPY.textosPrincipales, vistos),
+    textosPrincipales: elegir(textos, LIMITES_COPY.textosPrincipales, vistos, { estricto: false }),
     titulos: elegir(titulos, LIMITES_COPY.titulos, vistos),
     descripciones: elegir(descripciones, LIMITES_COPY.descripciones, vistos),
     mensajePrellenado,

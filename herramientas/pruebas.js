@@ -56,6 +56,7 @@ import {
   productosDeLaCarpeta,
 } from '../src/interprete.js';
 import { generarCopys } from '../src/copys.js';
+import { DIRECCIONES, direccionDeSede, direccionEnUnaLinea } from '../src/direcciones.js';
 import {
   CODIGOS_OBJETIVO,
   OBJETIVO_POR_DEFECTO,
@@ -996,7 +997,13 @@ const todosLosCopys = [
   copysDePrueba.mensajePrellenado,
 ];
 
-comprobar('Ningun texto principal pasa de 125 caracteres', copysDePrueba.textosPrincipales.every((t) => t.length <= 125));
+// El texto principal SI puede pasar de 125: el feed lo recorta pero se
+// despliega, y es el formato que usa Celred. Titulos y descripciones no: esos
+// Meta los corta de verdad.
+comprobar(
+  'Los textos principales cortos caben en el feed sin recorte',
+  copysDePrueba.textosPrincipales.filter((t) => t.length <= 125).length >= 2,
+);
 comprobar('Ningun titulo pasa de 40 caracteres', copysDePrueba.titulos.every((t) => t.length <= 40));
 comprobar('Ninguna descripcion pasa de 30 caracteres', copysDePrueba.descripciones.every((t) => t.length <= 30));
 comprobar('No hay textos repetidos', new Set(todosLosCopys).size === todosLosCopys.length);
@@ -1045,6 +1052,90 @@ comprobar('Un producto de nombre largo sigue cabiendo en los titulos', (() => {
   const c = generarCopys({ producto: 'Samsung Galaxy S25 Ultra Edition', ciudad: 'Tuquerres', segmento: 'AND-CRED' });
   return c.titulos.length >= 3 && c.titulos.every((t) => t.length <= 40);
 })());
+
+/* --- Direcciones oficiales: la fuente maestra -------------------------- */
+
+comprobar('Las 13 sedes activas tienen direccion', (() => {
+  return nom.CODIGOS_SEDE_ACTIVA.every((s) => direccionDeSede(s) !== null);
+})());
+
+comprobar('La Union tambien la tiene, para cuando abra', direccionDeSede('LAUNION') !== null);
+
+comprobar('Cada direccion trae calle, corta, ciudad y zona', (() => {
+  return Object.values(DIRECCIONES).every((d) => d.direccion && d.corta && d.ciudad && d.zona);
+})());
+
+comprobar('La direccion de ORITO es la del documento oficial', (() => {
+  const d = direccionDeSede('ORITO');
+  return d.direccion.includes('Calle 8 # 10-47') && d.direccion.includes('Marco Fidel Suárez') && d.ciudad === 'Orito';
+})());
+
+comprobar('Las tres sedes de Pasto tienen direcciones DISTINTAS', (() => {
+  const d = ['LA16', 'LICEO', 'SEBASTIAN'].map((s) => direccionDeSede(s).direccion);
+  return new Set(d).size === 3;
+})());
+
+comprobar('Las tres sedes de Ipiales tienen direcciones DISTINTAS', (() => {
+  const d = ['VICTORIA', 'ZAFIRO', 'MARKUS'].map((s) => direccionDeSede(s).direccion);
+  return new Set(d).size === 3;
+})());
+
+comprobar('No hay dos sedes con la misma direccion', (() => {
+  const todas = Object.values(DIRECCIONES).map((d) => d.direccion);
+  return new Set(todas).size === todas.length;
+})());
+
+comprobar('Pedir una sede que no existe falla, no devuelve otra', (() => {
+  try {
+    direccionDeSede('BOGOTA');
+    return false;
+  } catch {
+    return true;
+  }
+})());
+
+comprobar('La direccion en una linea lleva la ciudad', direccionEnUnaLinea('NEIVA').includes('Neiva'));
+
+// El error que mas caro sale: que el copy de una sede lleve la calle de otra.
+for (const sede of ['ORITO', 'NEIVA', 'VICTORIA', 'MEDELLIN']) {
+  comprobar(`El copy de ${sede} lleva SU direccion y ninguna otra`, (() => {
+    const c = generarCopys({ producto: 'iPhone 15', codigoSede: sede, segmento: 'IPH-CRED' });
+    const texto = c.textosPrincipales.join(' ');
+    const propia = direccionDeSede(sede).direccion;
+
+    if (!texto.includes(propia)) return false;
+
+    // Ninguna direccion de otra sede puede aparecer.
+    return Object.entries(DIRECCIONES)
+      .filter(([codigo]) => codigo !== sede)
+      .every(([, d]) => !texto.includes(d.direccion));
+  })());
+}
+
+comprobar('Sin codigo de sede, el copy sale SIN direccion (no inventada)', (() => {
+  const c = generarCopys({ producto: 'iPhone 15', ciudad: 'Pasto', segmento: 'IPH-CRED' });
+  return !c.textosPrincipales.some((t) => t.includes('📍'));
+})());
+
+/* --- Cero promociones (decision del 23/09/2026) ------------------------ */
+
+const copysDeVariasSedes = ['ORITO', 'NEIVA', 'LA16', 'MEDELLIN'].flatMap((sede) => {
+  const c = generarCopys({ producto: 'Redmi Note 15 Pro', codigoSede: sede, segmento: 'AND-CRED' });
+  return [...c.textosPrincipales, ...c.titulos, ...c.descripciones, c.mensajePrellenado];
+});
+
+for (const prohibida of [
+  'sorteo', 'gratis', 'rifa', 'descuento', 'promocion', 'promoción',
+  'sin inicial', 'reportado', 'oferta', '% de', 'aprovecha antes',
+]) {
+  comprobar(
+    `Los copys NO hablan de "${prohibida}"`,
+    !copysDeVariasSedes.some((t) => t.toLowerCase().includes(prohibida)),
+  );
+}
+
+comprobar('Los copys no ponen fechas de campana', !copysDeVariasSedes.some((t) => /\bdel \d{1,2} al \d{1,2}\b/i.test(t)));
+comprobar('Los copys no ponen precios', !copysDeVariasSedes.some((t) => /\$\s*\d/.test(t)));
 
 /* -------------------------------------------------------------------------- */
 
