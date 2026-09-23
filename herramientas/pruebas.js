@@ -1180,9 +1180,18 @@ comprobar('La Union existe pero no esta activa', (() => {
   return nom.CODIGOS_SEDE.includes('LAUNION') && !nom.CODIGOS_SEDE_ACTIVA.includes('LAUNION');
 })());
 comprobar('No se puede nombrar una campana de La Union todavia', !nom.auditarNombre('C1 | LAUNION | 230926', 'campana').ok);
-comprobar('La Union no inventa distintivo ni cuenta', (() => {
+comprobar('La Union ya tiene distintivo (UNI), confirmado por Celred', nom.SEDES.LAUNION.dist === 'UNI');
+comprobar('La Union no inventa cuenta publicitaria', (() => {
   const f = nom.SEDES.LAUNION;
-  return f.dist === null && f.cuenta === '' && Boolean(f.pendiente);
+  return f.cuenta === '' && Boolean(f.pendiente);
+})());
+comprobar('Una campana para La Union se rechaza mientras no abra', (() => {
+  try {
+    validarCampana({ ...campanasCargadas[0], sede: 'LAUNION' });
+    return false;
+  } catch (e) {
+    return e.message.includes('proxima sede');
+  }
 })());
 comprobar('Las 13 sedes de siempre siguen activas', nom.CODIGOS_SEDE_ACTIVA.length === 13);
 

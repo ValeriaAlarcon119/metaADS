@@ -22,6 +22,7 @@ import { CODIGOS_SEGMENTO, MAX_ANUNCIOS_POR_CONJUNTO, SUFIJOS_CONJUNTO, obtenerS
 import { SEDES_DISPONIBLES, obtenerSede as obtenerSedeTargeting } from './targeting.js';
 import { resolverCreativo, RAIZ } from './creativos-sede.js';
 import { MAX_OPCIONES_TEXTO } from './creatives.js';
+import { obtenerObjetivo, OBJETIVO_POR_DEFECTO } from './objetivos.js';
 
 export const CARPETA_CAMPANAS = join(RAIZ, 'campanas');
 
@@ -100,10 +101,28 @@ export function validarCampana(cfg) {
   const avisos = [];
   const donde = cfg.archivo ? `campanas/${cfg.archivo}.js` : 'la campana';
 
+  /* --- Objetivo: lo primero, porque de el sale casi todo ---------------- */
+  let objetivo = null;
+  try {
+    objetivo = obtenerObjetivo(cfg.objetivo || OBJETIVO_POR_DEFECTO);
+  } catch (error) {
+    errores.push(error.message);
+  }
+
   /* --- Sede ------------------------------------------------------------- */
   let ficha = null;
   try {
     ficha = obtenerSedeNomenclatura(cfg.sede);
+
+    // Una sede que todavia no ha abierto no se puede pautar, por muy bien que
+    // este todo lo demas.
+    if (ficha.proxima) {
+      errores.push(
+        `${ficha.codigo} (${ficha.sede}) todavia no esta abierta: es una proxima sede.\n` +
+          `  ${ficha.pendiente || ''}\n` +
+          '  Habilitala en src/nomenclatura.js cuando abra.',
+      );
+    }
   } catch (error) {
     errores.push(error.message);
   }
@@ -203,6 +222,7 @@ export function validarCampana(cfg) {
 
   return {
     ...cfg,
+    objetivo: objetivo.codigo,
     sede: ficha.codigo,
     sedeTargeting,
     conjuntos: conjuntosOk,

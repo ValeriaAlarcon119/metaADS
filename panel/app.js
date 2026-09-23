@@ -23,6 +23,8 @@ const estado = {
   plan: null,
   firma: '',
   ajustes: { campana: {}, conjuntos: [] },
+  // Se pone en true solo cuando alguien confirma el aviso de nomenclatura.
+  nombresForzados: false,
   aprobaciones: { campana: false, conjunto: false, anuncios: false, final: false },
   etapa: 1,
   puedePublicar: false,
@@ -285,6 +287,7 @@ async function abrirCampana(nombre, borrador = '') {
   estado.campana = nombre;
   estado.borrador = borrador;
   estado.ajustes = { campana: {}, conjuntos: [] };
+  estado.nombresForzados = false;
   estado.aprobaciones = { campana: false, conjunto: false, anuncios: false, final: false };
   estado.etapa = 1;
 
@@ -376,7 +379,7 @@ function pintarLectura(r) {
 /*  Planificacion                                                             */
 /* -------------------------------------------------------------------------- */
 
-async function planificar() {
+async function planificar({ nombresForzados = estado.nombresForzados } = {}) {
   cargando(true);
   try {
     const datos = await pedir('/api/plan', {
@@ -385,6 +388,7 @@ async function planificar() {
         campana: estado.borrador ? undefined : estado.campana,
         borrador: estado.borrador || undefined,
         ajustes: estado.ajustes,
+        nombresForzados,
       }),
     });
 
@@ -394,11 +398,61 @@ async function planificar() {
     return true;
   } catch (error) {
     cargando(false);
-    await modalDeError(error.datos || { error: error.message });
+    const datos = error.datos || { error: error.message };
+
+    // La nomenclatura es una regla de Celred, no de Meta. Incumplirla es una
+    // decision que puede tomar quien esta delante; lo que no puede es pasar
+    // en silencio. Por eso se ofrece continuar en vez de solo cerrar.
+    if (datos.tipo === 'nomenclatura') {
+      const seguir = await modalDeNomenclatura(datos);
+      if (seguir) {
+        estado.nombresForzados = true;
+        return planificar({ nombresForzados: true });
+      }
+      return false;
+    }
+
+    await modalDeError(datos);
     return false;
   } finally {
     cargando(false);
   }
+}
+
+/**
+ * El aviso de nomenclatura. No bloquea: enseña que esta mal, con que compararlo
+ * y deja elegir.
+ */
+function modalDeNomenclatura(datos) {
+  const nombres = datos.nombres || [];
+
+  const bloques = nombres.length
+    ? nombres
+        .map(
+          (n) => `
+        <p><strong>Como ${esc(n.que)}:</strong> <code>${esc(n.nombre)}</code></p>
+        <ul>${n.problemas.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+        <div class="modal-formato">
+          <div><b>Formato</b><code>${esc(n.formato)}</code></div>
+          <div class="ejemplo"><b>Ejemplo</b><code>${esc(n.ejemplo)}</code></div>
+        </div>`,
+        )
+        .join('')
+    : `<p>${esc(datos.error).replace(/\n/g, '<br />')}</p>`;
+
+  return modal({
+    titulo: 'Este nombre no cumple la nomenclatura de Celred',
+    tipo: 'aviso',
+    cuerpo:
+      bloques +
+      '<p class="sutil">Puedes crearlo así de todas formas. Meta lo acepta sin problema — la ' +
+      'nomenclatura es una regla interna, y quedará anotado que se creó fuera de ella.</p>',
+    tecnico: datos.tecnico || datos.error,
+    botones: [
+      { texto: 'Volver a corregir', valor: false },
+      { texto: 'Continuar con este nombre', valor: true, clase: 'btn-primario' },
+    ],
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -463,15 +517,49 @@ function pintarEtapa1() {
       `(${c.consecutivo.previas} previas entre ${c.consecutivo.revisadas} campañas revisadas)`
     : 'Se cuelga de una campaña que ya existe.';
 
+  const o = p.objetivo;
+  const fuera = (p.nombresFueraDeManual || []).some((n) => n.nombre === c.nombre);
+
+  const cajaObjetivo = `
+    <div class="casilla-estado ${o.ensayado ? '' : 'casilla-aviso'}" style="margin-bottom:22px">
+      <span class="marca-check">${o.ensayado ? '✓' : '!'}</span>
+      <div style="width:100%">
+        <div class="titulo">Objetivo: ${esc(o.etiqueta)}</div>
+        <div class="sutil">${esc(o.queConsigue)}</div>
+        <ul class="interruptores" style="margin-top:9px">
+          <li>En Ads Manager: <strong>${esc(o.enAdsManager)}</strong></li>
+          <li>Prefijo del nombre: <code>${esc(o.prefijo)}#</code> — ${
+            o.ambito === 'regional' ? 'campaña regional' : 'campaña de sede'
+          }</li>
+          <li>Número de WhatsApp: ${o.usaWhatsApp ? 'sí, hace falta' : 'no aplica a este objetivo'}</li>
+        </ul>
+        <div class="tecnico" style="margin-top:9px">
+          <code>objective = ${esc(p.meta.objective)}</code> ·
+          <code>optimization_goal = ${esc(p.meta.optimization_goal)}</code> ·
+          <code>billing_event = ${esc(p.meta.billing_event)}</code>
+          ${p.meta.destination_type ? ` · <code>destination_type = ${esc(p.meta.destination_type)}</code>` : ''}
+        </div>
+        ${
+          o.ensayado
+            ? ''
+            : `<div style="margin-top:10px"><strong>Este objetivo no se ha ensayado todavía contra la cuenta real.</strong>
+                 <span class="sutil">${esc(o.notaDeEnsayo)}</span></div>`
+        }
+      </div>
+    </div>`;
+
   $('#c1-vista').innerHTML = `
+    ${cajaObjetivo}
     <div class="bloque">
       <dl class="datos">
         ${fila(
           c.crear ? 'Campaña nueva' : 'Campaña existente',
-          `<span class="grande mono ok">${esc(c.nombre)}</span>`,
+          `<span class="grande mono ${fuera ? 'mal' : 'ok'}">${esc(c.nombre)}</span>` +
+            (fuera
+              ? '<span class="nota mal">⚠ Fuera de la nomenclatura de Celred. Se creará así porque se confirmó.</span>'
+              : '<span class="nota ok">✓ Cumple la nomenclatura del manual v1.2</span>'),
           `Patrón del manual: ${c.patron}`,
         )}
-        ${fila('Objetivo', esc(c.objetivo), 'Conversaciones — mensajería a WhatsApp')}
         ${fila('Consecutivo', esc(consecutivo))}
         ${fila('Sede', `${esc(p.sede.codigo)} · ${esc(p.sede.nombre)} (${esc(p.sede.ciudad)})`, `Distintivo ${p.sede.dist}, va en el conjunto y en los anuncios`)}
         ${fila('Cuenta publicitaria', `${esc(p.cuenta.etiqueta)} · <span class="mono">${esc(p.cuenta.id)}</span>`, `${p.cuenta.nombre} — elegida por ${p.cuenta.origen}`)}

@@ -199,7 +199,8 @@ function imprimirVistaPrevia(plan) {
 
   const etiquetaCampana = plan.campana.crear ? '1. Campana (nueva)' : '1. Campana (existente)';
   out.push(filaEtiqueta(etiquetaCampana, plan.campana.nombre, C.bold + C.verde));
-  out.push(filaDetalle(`formato: C# | SEDE | DDMMAA   ·   objetivo: ${plan.objetivo}`));
+  out.push(filaDetalle(`objetivo: ${plan.objetivo.etiqueta} (${plan.meta.objective})`));
+  out.push(filaDetalle(`${plan.objetivo.enAdsManager}`));
   if (plan.campana.consecutivo) {
     const c = plan.campana.consecutivo;
     out.push(

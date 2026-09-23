@@ -246,8 +246,14 @@ export const ESTADO_OBLIGATORIO = 'PAUSED';
 /** Unicos estados con los que builder.js acepta crear objetos. */
 export const ESTADOS_VALIDOS = ['PAUSED', 'ACTIVE'];
 
-/** Objetivo por defecto para campanas de mensajeria a WhatsApp. */
-export const OBJETIVO_POR_DEFECTO = 'OUTCOME_ENGAGEMENT';
+/**
+ * El objetivo ya NO vive aqui.
+ *
+ * Antes esto era una constante suelta con el valor de Meta
+ * ('OUTCOME_ENGAGEMENT'), lo que mezclaba tres cosas distintas: el objetivo de
+ * la campana, la meta de optimizacion del conjunto y el destino del mensaje.
+ * Ahora cada objetivo declara los tres por separado en `src/objetivos.js`.
+ */
  
 /**
  * Monedas de Meta SIN subunidades (el monto se envia tal cual).
@@ -324,7 +330,6 @@ export default {
   INSTAGRAM_USER_ID,
   ESTADO_OBLIGATORIO,
   ESTADOS_VALIDOS,
-  OBJETIVO_POR_DEFECTO,
   GRAPH_BASE,
   GRAPH_VERSION,
   obtenerInfoCuenta,

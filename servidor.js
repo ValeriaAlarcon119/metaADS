@@ -43,6 +43,7 @@ import { SEGMENTOS } from './src/nomenclatura.js';
 import { listarCampanas, cargarCampana, LIMITES_COPY } from './src/campanas.js';
 import { aplicarAjustes } from './src/ajustes.js';
 import { interpretar } from './src/interprete.js';
+import { listarParaLaInterfaz } from './src/objetivos.js';
 import { RAIZ, CARPETA_CREATIVOS } from './src/creativos-sede.js';
 import { MAX_OPCIONES_TEXTO } from './src/creatives.js';
 
@@ -154,7 +155,8 @@ function firmarPlan(plan) {
     cuenta: plan.cuenta.id,
     sede: plan.sede.codigo,
     estado: plan.estado,
-    objetivo: plan.objetivo,
+    objetivo: plan.objetivo.codigo,
+    meta: plan.meta,
     campana: { crear: plan.campana.crear, id: plan.campana.id, nombre: plan.campana.nombre },
     whatsapp: plan.whatsapp.telefono,
     modoTexto: plan.modoTexto,
@@ -184,7 +186,13 @@ const borradores = new Map();
  * Carga la campana —de campanas/ o de un borrador dictado—, aplica los ajustes
  * del panel y planifica. No crea nada: `planificarEstructura` es solo lectura.
  */
-async function prepararPlan({ campana: nombreCampana, borrador, ajustes = {}, sinMeta = false }) {
+async function prepararPlan({
+  campana: nombreCampana,
+  borrador,
+  ajustes = {},
+  sinMeta = false,
+  nombresForzados = false,
+}) {
   const base = borrador
     ? borradores.get(borrador)
     : await cargarCampana(nombreCampana);
@@ -203,6 +211,9 @@ async function prepararPlan({ campana: nombreCampana, borrador, ajustes = {}, si
     permitirEnVivo: false,
     sinConexion: Boolean(sinMeta),
     simulado: cfg.simulado || {},
+    // Solo lo manda el panel, y solo despues de que alguien haya visto el
+    // aviso de nomenclatura y haya pulsado "continuar con este nombre".
+    nombresForzados: Boolean(nombresForzados),
   });
 
   plan.avisos.unshift(...(cfg.avisosDeConfiguracion || []));
@@ -245,6 +256,13 @@ function vistaDelPlan(plan, { firma, cambios }) {
       paginaId: PAGE_ID,
     },
 
+    /** El objetivo elegido, con lo que hace falta para explicarlo. */
+    objetivo: plan.objetivo,
+    /** Los campos reales que se mandan a Meta, por nivel. */
+    meta: plan.meta,
+    /** Nombres que se salen del manual y se crearian igual tras confirmar. */
+    nombresFueraDeManual: plan.nombresFueraDeManual || [],
+
     sede: {
       codigo: plan.sede.codigo,
       nombre: plan.sede.sede,
@@ -258,8 +276,8 @@ function vistaDelPlan(plan, { firma, cambios }) {
       id: plan.campana.id,
       numero: plan.campana.numero,
       nombre: plan.campana.nombre,
-      objetivo: plan.objetivo,
-      patron: 'C# | SEDE | DDMMAA',
+      patron:
+        plan.objetivo.ambito === 'regional' ? 'R# | REGION | TIPO | DDMMAA' : 'C# | SEDE | DDMMAA',
       consecutivo: plan.campana.consecutivo
         ? {
             maximo: plan.campana.consecutivo.maximo,
@@ -562,6 +580,7 @@ async function apiPlan(req, res) {
     borrador: cuerpo.borrador,
     ajustes: cuerpo.ajustes || {},
     sinMeta,
+    nombresForzados: cuerpo.nombresForzados,
   });
 
   responderJson(res, 200, {
@@ -809,6 +828,9 @@ async function manejar(req, res) {
 
   try {
     if (ruta === '/api/estado' && req.method === 'GET') return await apiEstado(res);
+    if (ruta === '/api/objetivos' && req.method === 'GET') {
+      return responderJson(res, 200, { ok: true, objetivos: listarParaLaInterfaz() });
+    }
     if (ruta === '/api/interpretar' && req.method === 'POST') return await apiInterpretar(req, res);
     if (ruta === '/api/plan' && req.method === 'POST') return await apiPlan(req, res);
     if (ruta === '/api/creativo' && req.method === 'GET') return apiCreativo(url, req, res);
@@ -820,7 +842,15 @@ async function manejar(req, res) {
   } catch (error) {
     if (!res.headersSent) {
       const { titulo, error: mensaje, amigable, tecnico } = errorParaLaPantalla(error);
-      return responderError(res, 400, mensaje, { titulo, amigable, tecnico });
+      return responderError(res, 400, mensaje, {
+        titulo,
+        amigable,
+        tecnico,
+        // Un problema de nomenclatura no es un fallo tecnico: el panel ofrece
+        // "corregir" o "continuar con este nombre" en vez de solo cerrar.
+        tipo: error?.tipo || '',
+        nombres: error?.nombres || [],
+      });
     }
     res.end();
   }

@@ -10,12 +10,19 @@
 .env.*
 !.env.ejemplo
 
-# --- DATOS DE LA EMPRESA ------------------------------------
+# --- DATOS Y DOCUMENTOS DE LA EMPRESA -----------------------
 # lineas.xlsx lleva los telefonos de las 13 sedes y el nombre de cada lider.
 # Son datos personales y de negocio: no tienen por que estar en un repositorio.
 # El sistema lo lee del disco; cada equipo pone su copia.
 lineas.xlsx
 *.xlsx
+
+# Documentos internos de Celred. Lo que el sistema necesita de ellos ya esta
+# en el codigo (src/nomenclatura.js, src/direcciones.js); el documento en si
+# no tiene por que viajar al repositorio.
+*.docx
+*.doc
+*.pdf
 
 # --- PIEZAS PUBLICITARIAS -----------------------------------
 # Los creativos son archivos pesados (un video puede pasar de 80 MB) y git no

@@ -66,17 +66,17 @@ export const SEDES = Object.freeze({
    * proxima sede, pero `proxima: true` hace que no se pueda crear una campana
    * real para ella hasta que se habilite.
    *
-   * Su distintivo y su cuenta estan sin confirmar a proposito: no se inventan.
-   * Cuando se habilite hay que ponerlos aqui, sacados del manual.
+   * El distintivo (UNI) lo confirmo Celred el 23/09/2026. La cuenta sigue sin
+   * decidir: se pone aqui el dia que abra.
    */
   LAUNION: {
     codigo: 'LAUNION',
-    dist: null,
+    dist: 'UNI',
     sede: 'La Union',
     ciudad: 'La Union',
     cuenta: '',
     proxima: true,
-    pendiente: 'Faltan el distintivo de tres letras y la cuenta publicitaria. Confirmarlos con el manual.',
+    pendiente: 'Falta decidir en que cuenta publicitaria va (CA 01 o CA 02).',
   },
 });
 

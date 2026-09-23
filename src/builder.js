@@ -28,7 +28,6 @@ import {
   cuentaDeSede,
   ESTADO_OBLIGATORIO,
   ESTADOS_VALIDOS,
-  OBJETIVO_POR_DEFECTO,
   PAGE_ID,
   WHATSAPP_NUMBER,
   RUTA_LINEAS_XLSX,
@@ -51,12 +50,17 @@ import {
   INTERRUPTORES_DE_EXPANSION,
 } from './targeting.js';
 
+import { obtenerObjetivo, camposDeMeta, OBJETIVO_POR_DEFECTO } from './objetivos.js';
+
 import {
   nombreCampana,
+  nombreCampanaRegional,
   nombreConjunto,
+  nombreConjuntoRegional,
   nombreAnuncio,
   auditarNombre,
   NIVELES,
+  REGIONES,
   validarPresupuesto,
   obtenerSedeNomenclatura,
   fechaDDMMAA,
@@ -131,7 +135,18 @@ export async function planificarEstructura(cfg) {
     anuncios = [],
     campanaExistenteId = null,
     estado = ESTADO_OBLIGATORIO,
+
+    // El objetivo se elige al principio y de el sale el prefijo del nombre
+    // (C o R), los tres campos de Meta y si hace falta numero de WhatsApp.
+    // No se deduce del nombre: es un dato.
     objetivo = OBJETIVO_POR_DEFECTO,
+    // Solo para campanas regionales (R#).
+    region = '',
+    tipoRegional = '',
+    // Cuando un nombre escrito a mano no cumple el manual, por defecto se
+    // corta. Con esto en true se avisa y se continua: la decision es de quien
+    // esta delante de la pantalla, no del sistema.
+    nombresForzados = false,
     segmentacion = {},
     fecha = new Date(),
     tipoPresupuesto = 'sede',
@@ -198,8 +213,34 @@ export async function planificarEstructura(cfg) {
     );
   }
 
+  /* --- El objetivo manda ------------------------------------------------ */
+  const fichaObjetivo = obtenerObjetivo(objetivo);
+  const esRegional = fichaObjetivo.ambito === 'regional';
+
+  if (!fichaObjetivo.ensayado) {
+    avisos.push(
+      `El objetivo "${fichaObjetivo.etiqueta}" todavia no se ha ensayado contra la cuenta real. ` +
+        `${fichaObjetivo.notaDeEnsayo} Corre "npm run validar" antes de crear, que no crea nada.`,
+    );
+  }
+
+  if (esRegional && !region) {
+    const e = new Error(
+      `"${fichaObjetivo.etiqueta}" es una campana regional, asi que hace falta decir la region.\n` +
+        `  Regiones: ${REGIONES.join(', ')}`,
+    );
+    e.amigable = true;
+    e.titulo = 'Falta la region';
+    throw e;
+  }
+
   /* --- Linea de WhatsApp: sale del Excel, no de una constante ------------ */
-  const whatsapp = lineaDeSede(RUTA_LINEAS_XLSX, ficha.codigo, { telefonoForzado });
+  // Solo los objetivos de mensajeria la necesitan. Una campana de
+  // reconocimiento no lleva numero ni promoted_object.
+  const whatsapp = fichaObjetivo.usaWhatsApp
+    ? lineaDeSede(RUTA_LINEAS_XLSX, ficha.codigo, { telefonoForzado })
+    : { telefono: '', origen: 'no aplica a este objetivo', avisos: [], alternativas: [], registro: null };
+
   avisos.push(...whatsapp.avisos);
 
   if (modoTexto === 'multiple') {
@@ -301,32 +342,51 @@ export async function planificarEstructura(cfg) {
     }
   } else {
     numeroCampana = consecutivoCampana.siguiente;
-    nombreDeCampana = nombreCampana({ numero: numeroCampana, sede: ficha.codigo, fecha });
+
+    // El objetivo decide la forma del nombre: las de sede llevan C y el codigo
+    // de la sede; las regionales llevan R, la region y el tipo (punto 10).
+    nombreDeCampana = esRegional
+      ? nombreCampanaRegional({ numero: numeroCampana, region, tipo: tipoRegional || 'GEO', fecha })
+      : nombreCampana({ numero: numeroCampana, sede: ficha.codigo, fecha });
 
     // Nombre escrito a mano en el panel. Reemplaza al generado, pero pasa por
     // la misma auditoria mas abajo: si no cumple el manual, no se crea nada.
     if (nombreCampanaManual) {
       const aMano = String(nombreCampanaManual).trim();
       if (aMano !== nombreDeCampana) {
-        const numeroAMano = Number(/^C(\d{1,5})/i.exec(aMano)?.[1]);
-        if (!Number.isInteger(numeroAMano)) {
+        const prefijo = fichaObjetivo.prefijo;
+        const numeroAMano = Number(new RegExp(`^${prefijo}(\\d{1,5})`, 'i').exec(aMano)?.[1]);
+
+        if (Number.isInteger(numeroAMano)) {
+          avisos.push(
+            `El nombre de la campana se fijo a mano: "${aMano}" en vez de "${nombreDeCampana}". ` +
+              `El consecutivo que se leyo de Ads Manager era ${prefijo}${numeroCampana}; ` +
+              `se usara ${prefijo}${numeroAMano} tambien en el nombre del conjunto.`,
+          );
+          numeroCampana = numeroAMano;
+        } else if (nombresForzados) {
+          // Un nombre libre ("CAMPANA IPHONE VICTORIA SEPTIEMBRE") se respeta,
+          // pero el consecutivo de los conjuntos sigue siendo el real: es lo
+          // unico que mantiene la continuidad con lo que ya existe.
+          avisos.push(
+            `El nombre de la campana no sigue el manual: "${aMano}". Se crea asi porque se confirmo ` +
+              `expresamente. Los conjuntos seguiran usando ${prefijo}${numeroCampana}, que es el ` +
+              'consecutivo real leido de Ads Manager.',
+          );
+        } else {
           const e = new Error(
-            `El nombre "${aMano}" no empieza por C seguido de un numero.\n` +
+            `El nombre "${aMano}" no empieza por ${prefijo} seguido de un numero.\n` +
               '  Ese numero es el consecutivo de la campana, y hace falta porque tambien va en el\n' +
               '  nombre del conjunto (punto 5 del manual).\n' +
               `  Formato: ${NIVELES.campana.formato}\n  Ejemplo: ${NIVELES.campana.ejemplo}`,
           );
           e.amigable = true;
           e.titulo = 'Falta el consecutivo de la campana';
+          e.tipo = 'nomenclatura';
           throw e;
         }
-        avisos.push(
-          `El nombre de la campana se fijo a mano: "${aMano}" en vez de "${nombreDeCampana}". ` +
-            `El consecutivo que se leyo de Ads Manager era C${numeroCampana}; ` +
-            `se usara C${numeroAMano} tambien en el nombre del conjunto.`,
-        );
+
         nombreDeCampana = aMano;
-        numeroCampana = numeroAMano;
       }
     }
   }
@@ -341,27 +401,25 @@ export async function planificarEstructura(cfg) {
     const segmentoConjunto = String(entrada.segmento || '').toUpperCase();
     const sufijo = String(entrada.sufijoConjunto ?? sufijoConjunto ?? '').toUpperCase();
 
-    let nombre = nombreConjunto({
-      numeroCampana,
-      sede: ficha.codigo,
-      numeroConjunto: numero,
-      segmento: segmentoConjunto,
-      sufijo,
-    });
+    let nombre = esRegional
+      ? nombreConjuntoRegional({
+          numeroCampana,
+          numeroConjunto: numero,
+          segmentacion: entrada.segmentacionRegional || segmentoConjunto,
+        })
+      : nombreConjunto({
+          numeroCampana,
+          sede: ficha.codigo,
+          numeroConjunto: numero,
+          segmento: segmentoConjunto,
+          sufijo,
+        });
 
-    // El nombre a mano solo tiene sentido cuando hay un conjunto: con varios
-    // no se sabria a cual aplicarlo.
-    if (nombreConjuntoManual && entradas.length === 1) {
-      const aMano = String(nombreConjuntoManual).trim();
-      if (aMano !== nombre) {
-        avisos.push(`El nombre del conjunto se fijo a mano: "${aMano}" en vez de "${nombre}".`);
-        nombre = aMano;
-      }
-    } else if (nombreConjuntoManual && indice === 0) {
-      avisos.push(
-        'Se ignoro el nombre de conjunto escrito a mano: la campana tiene varios conjuntos y no se ' +
-          'sabria a cual aplicarlo.',
-      );
+    // Cada conjunto puede traer su propio nombre escrito a mano.
+    const aMano = String(entrada.nombreManual || (entradas.length === 1 ? nombreConjuntoManual : '') || '').trim();
+    if (aMano && aMano !== nombre) {
+      avisos.push(`El nombre del conjunto ${numero} se fijo a mano: "${aMano}" en vez de "${nombre}".`);
+      nombre = aMano;
     }
 
     const modo = entrada.modoTexto || modoTexto;
@@ -369,14 +427,22 @@ export async function planificarEstructura(cfg) {
 
     const anunciosPlan = (entrada.anuncios || []).map((a, i) => {
       const n = i + 1;
-      const nombreDelAnuncio = nombreAnuncio({
+      let nombreDelAnuncio = nombreAnuncio({
         numero: n,
         sede: ficha.codigo,
         formato: a.formato,
         referencia: a.referencia,
+        // El talento es opcional y lo escribe la persona: puede ser "SOFIA" o
+        // "SOFIA MEDELLIN". El sistema no lo completa solo.
         talento: a.talento || '',
         linea: a.linea || '',
       });
+
+      const anuncioAMano = String(a.nombreManual || '').trim();
+      if (anuncioAMano && anuncioAMano !== nombreDelAnuncio) {
+        avisos.push(`El nombre del anuncio ${n} se fijo a mano: "${anuncioAMano}" en vez de "${nombreDelAnuncio}".`);
+        nombreDelAnuncio = anuncioAMano;
+      }
 
       return {
         numero: n,
@@ -469,34 +535,64 @@ export async function planificarEstructura(cfg) {
   }
 
   /* --- Auditoria de nombres: si uno no cumple, no se crea nada ----------- */
+  const nivelCampana = esRegional ? 'campanaRegional' : 'campana';
+
   const auditorias = [
-    { nivel: 'campana', nombre: nombreDeCampana, aplica: !campanaExistenteId },
+    { nivel: nivelCampana, nombre: nombreDeCampana, aplica: !campanaExistenteId },
     ...planesDeConjunto.flatMap((c) => [
-      { nivel: 'conjunto', nombre: c.nombre, aplica: true },
+      { nivel: esRegional ? 'conjuntoRegional' : 'conjunto', nombre: c.nombre, aplica: true },
       ...c.anuncios.map((a) => ({ nivel: 'anuncio', nombre: a.nombre, aplica: true })),
     ]),
   ];
 
   const problemasDeNombre = [];
+  /** Lo mismo, pero en trozos, para que la pantalla pueda pintarlo bien. */
+  const nombresFueraDeManual = [];
+
   for (const item of auditorias) {
     if (!item.aplica) continue;
     const r = auditarNombre(item.nombre, item.nivel);
     if (r.ok) continue;
 
+    nombresFueraDeManual.push({
+      nivel: item.nivel,
+      que: NIVELES[item.nivel]?.que || item.nivel,
+      nombre: item.nombre,
+      problemas: r.problemas,
+      formato: r.formato,
+      ejemplo: r.ejemplo,
+      ayuda: r.ayuda,
+    });
+
     // El mensaje tiene que servirle a quien lo lee en pantalla: que esta mal,
     // con que compararlo y un ejemplo que funcione. Nunca la expresion regular.
     problemasDeNombre.push(
-      `El nombre "${item.nombre}" no sirve como nombre de ${r.ayuda ? NIVELES[item.nivel].que : item.nivel}.\n` +
+      `El nombre "${item.nombre}" no sirve como nombre de ${NIVELES[item.nivel]?.que || item.nivel}.\n` +
         r.problemas.map((p) => `  · ${p}`).join('\n') +
         `\n  Formato: ${r.formato}\n  Ejemplo: ${r.ejemplo}\n  ${r.ayuda}`,
     );
   }
 
   if (problemasDeNombre.length > 0) {
-    const e = new Error(problemasDeNombre.join('\n\n'));
-    e.amigable = true;
-    e.titulo = 'Ese nombre no cumple el manual';
-    throw e;
+    // Si alguien confirmo expresamente que quiere esos nombres, se crean. El
+    // manual es de Celred, no de Meta: incumplirlo es una decision de negocio
+    // que puede tomar quien esta delante, no un error tecnico que deba
+    // bloquear. Lo que no puede pasar es que ocurra en silencio.
+    if (!nombresForzados) {
+      const e = new Error(problemasDeNombre.join('\n\n'));
+      e.amigable = true;
+      e.titulo = 'Ese nombre no cumple el manual';
+      e.tipo = 'nomenclatura';
+      e.nombres = nombresFueraDeManual;
+      throw e;
+    }
+
+    for (const n of nombresFueraDeManual) {
+      avisos.push(
+        `NOMENCLATURA: "${n.nombre}" no cumple el manual como ${n.que} (${n.problemas.join(' ')}) ` +
+          'y se creo asi porque se confirmo expresamente.',
+      );
+    }
   }
 
   if (campanaExistenteId) {
@@ -520,7 +616,28 @@ export async function planificarEstructura(cfg) {
     // y por que, que es lo que hay que enseñar antes de crear nada.
     cuenta: { ...cuenta, ...cuentaSede },
     whatsapp,
-    objetivo,
+
+    /** El objetivo elegido, con su explicacion. */
+    objetivo: {
+      codigo: fichaObjetivo.codigo,
+      etiqueta: fichaObjetivo.etiqueta,
+      queConsigue: fichaObjetivo.queConsigue,
+      enAdsManager: fichaObjetivo.enAdsManager,
+      prefijo: fichaObjetivo.prefijo,
+      ambito: fichaObjetivo.ambito,
+      usaWhatsApp: fichaObjetivo.usaWhatsApp,
+      ensayado: fichaObjetivo.ensayado,
+      notaDeEnsayo: fichaObjetivo.notaDeEnsayo,
+      region: esRegional ? region : '',
+      tipoRegional: esRegional ? tipoRegional || 'GEO' : '',
+    },
+
+    /** Los campos que se le mandan a Meta, separados por nivel. */
+    meta: camposDeMeta(fichaObjetivo.codigo),
+
+    /** Nombres que no cumplen el manual y se crearon igual, tras confirmar. */
+    nombresFueraDeManual,
+
     estado: estadoPedido,
     fecha: fechaDDMMAA(fecha),
     campana: {
@@ -575,7 +692,8 @@ export function paramsDeCampana(plan, estado = ESTADO_OBLIGATORIO) {
     forzarEstado(
       {
         [Campaign.Fields.name]: plan.campana.nombre,
-        [Campaign.Fields.objective]: plan.objetivo,
+        // El objetivo real de Meta sale de la ficha, no del codigo interno.
+        [Campaign.Fields.objective]: plan.meta.objective,
         [Campaign.Fields.special_ad_categories]: [],
         [Campaign.Fields.buying_type]: 'AUCTION',
 
@@ -611,25 +729,30 @@ export function paramsDeConjunto(plan, campaignId, estado = ESTADO_OBLIGATORIO, 
         [AdSet.Fields.name]: conjunto.nombre,
         [AdSet.Fields.campaign_id]: campaignId,
         [AdSet.Fields.daily_budget]: conjunto.presupuesto.unidadMenor,
-        [AdSet.Fields.billing_event]: 'IMPRESSIONS',
-        [AdSet.Fields.optimization_goal]: 'CONVERSATIONS',
-        [AdSet.Fields.bid_strategy]: 'LOWEST_COST_WITHOUT_CAP',
 
-        // Destino SOLO WhatsApp.
-        //
-        // Este unico campo es el que excluye a Messenger y a Instagram Direct:
-        // las casillas de la interfaz de Ads Manager se codifican en el propio
-        // valor. Marcar los tres daria MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP;
-        // 'WHATSAPP' a secas deja solo WhatsApp.
-        [AdSet.Fields.destination_type]: 'WHATSAPP',
+        // Los tres salen del objetivo elegido, no estan cableados aqui.
+        [AdSet.Fields.billing_event]: plan.meta.billing_event,
+        [AdSet.Fields.optimization_goal]: plan.meta.optimization_goal,
+
+        // Destino de los mensajes. Este unico campo es el que excluye a
+        // Messenger y a Instagram Direct: las casillas de Ads Manager se
+        // codifican en el propio valor. Marcar los tres daria
+        // MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP; 'WHATSAPP' a secas
+        // deja solo WhatsApp. En los objetivos que no son de mensajeria va
+        // undefined y `limpiar()` lo quita.
+        [AdSet.Fields.destination_type]: plan.meta.destination_type || undefined,
+
+        [AdSet.Fields.bid_strategy]: 'LOWEST_COST_WITHOUT_CAP',
 
         // AQUI vive la linea de la sede. No en la URL del creativo: Meta
         // resuelve el numero desde aqui y desde el WhatsApp vinculado a la
         // Pagina, e ignora cualquier ?phone= que traiga el enlace.
-        [AdSet.Fields.promoted_object]: {
-          page_id: PAGE_ID,
-          whatsapp_phone_number: normalizarNumeroWhatsApp(plan.whatsapp.telefono),
-        },
+        [AdSet.Fields.promoted_object]: plan.whatsapp.telefono
+          ? {
+              page_id: PAGE_ID,
+              whatsapp_phone_number: normalizarNumeroWhatsApp(plan.whatsapp.telefono),
+            }
+          : undefined,
 
         [AdSet.Fields.targeting]: sanitizarTargeting(conjunto.targeting, conjunto.expansionPedida),
 
