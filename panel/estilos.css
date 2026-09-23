@@ -891,6 +891,194 @@ h3 {
   color: var(--sutil);
 }
 
+/* -------------------------------- modal ---------------------------------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 9, 13, 0.78);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 24px;
+  animation: aparecer 0.14s ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal-caja {
+  width: 100%;
+  max-width: 620px;
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  animation: subir 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes subir {
+  from {
+    transform: translateY(14px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+.modal-cabeza {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 20px 24px 14px;
+}
+
+.modal-cabeza h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 18px;
+}
+
+.modal-icono {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal-error .modal-icono {
+  background: var(--rojo-fondo);
+  color: var(--rojo);
+  border: 1px solid #6b2226;
+}
+
+.modal-aviso .modal-icono {
+  background: var(--amarillo-fondo);
+  color: var(--amarillo);
+  border: 1px solid #5c4413;
+}
+
+.modal-pregunta .modal-icono {
+  background: rgba(68, 147, 248, 0.14);
+  color: var(--azul);
+  border: 1px solid #1f4d80;
+}
+
+.modal-ok .modal-icono {
+  background: var(--verde-fondo);
+  color: var(--verde);
+  border: 1px solid #1d5c2b;
+}
+
+.modal-cuerpo {
+  padding: 0 24px 4px;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.modal-cuerpo p {
+  margin: 0 0 12px;
+}
+
+.modal-cuerpo ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.modal-cuerpo li {
+  margin-bottom: 5px;
+}
+
+/* El bloque "así debe verse": formato y ejemplo, uno debajo del otro. */
+.modal-formato {
+  margin: 4px 0 14px;
+  padding: 12px 15px;
+  background: #0b0f14;
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--azul);
+  border-radius: 0 8px 8px 0;
+}
+
+.modal-formato div {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.modal-formato div:last-child {
+  margin-bottom: 0;
+}
+
+.modal-formato b {
+  color: var(--sutil);
+  font-weight: 600;
+  min-width: 62px;
+  flex: none;
+}
+
+.modal-formato code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--texto);
+  font-size: 13.5px;
+}
+
+.modal-formato .ejemplo code {
+  color: var(--verde);
+  font-weight: 700;
+}
+
+.modal-tecnico {
+  margin: 0 24px 8px;
+  border-top: 1px solid var(--borde);
+  padding-top: 12px;
+}
+
+.modal-tecnico summary {
+  cursor: pointer;
+  color: var(--sutil);
+  font-size: 12.5px;
+  user-select: none;
+}
+
+.modal-tecnico summary:hover {
+  color: var(--texto);
+}
+
+.modal-tecnico pre {
+  margin: 10px 0 0;
+  padding: 11px 13px;
+  background: #05080c;
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sutil);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.modal-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  flex-wrap: wrap;
+}
+
 /* ------------------------------ cargando --------------------------------- */
 
 .cargando {

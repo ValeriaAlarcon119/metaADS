@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- *  src/nomenclatura.js — Manual de nomenclatura de campanas Celred v1.2
+ *  src/nomenclatura.js � Manual de nomenclatura de campanas Celred v1.2
  * ============================================================================
  *  Implementacion literal del documento
  *  "Manual_Nomenclatura_Campanas_Celred_v1_2.pdf" (21/09/2026), vigente para
@@ -34,7 +34,7 @@ const CARACTERES_PROHIBIDOS = /[/\\#%&"'`]/g;
 const TIENE_CARACTER_PROHIBIDO = /[/\\#%&"'`]/;
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 7 — Codigos de sede y distintivos                                   */
+/*  Punto 7 � Codigos de sede y distintivos                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -60,7 +60,28 @@ export const SEDES = Object.freeze({
   MOCOA: { codigo: 'MOCOA', dist: 'MOC', sede: 'Mocoa', ciudad: 'Putumayo', cuenta: 'CA 01' },
   MEDELLIN: { codigo: 'MEDELLIN', dist: 'MED', sede: 'Medellin', ciudad: 'Antioquia', cuenta: 'CA 01 y CA 02' },
   NEIVA: { codigo: 'NEIVA', dist: 'NEI', sede: 'Neiva', ciudad: 'Huila', cuenta: 'CA 02' },
+
+  /**
+   * La Union todavia no esta abierta. Aparece en las listas marcada como
+   * proxima sede, pero `proxima: true` hace que no se pueda crear una campana
+   * real para ella hasta que se habilite.
+   *
+   * Su distintivo y su cuenta estan sin confirmar a proposito: no se inventan.
+   * Cuando se habilite hay que ponerlos aqui, sacados del manual.
+   */
+  LAUNION: {
+    codigo: 'LAUNION',
+    dist: null,
+    sede: 'La Union',
+    ciudad: 'La Union',
+    cuenta: '',
+    proxima: true,
+    pendiente: 'Faltan el distintivo de tres letras y la cuenta publicitaria. Confirmarlos con el manual.',
+  },
 });
+
+/** Las sedes que se pueden pautar hoy. La Union queda fuera hasta que abra. */
+export const CODIGOS_SEDE_ACTIVA = Object.keys(SEDES).filter((c) => !SEDES[c].proxima);
 
 export const CODIGOS_SEDE = Object.keys(SEDES);
 
@@ -78,7 +99,7 @@ export function obtenerSedeNomenclatura(codigo) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 8 — Segmentos de producto (lista cerrada)                           */
+/*  Punto 8 � Segmentos de producto (lista cerrada)                           */
 /* -------------------------------------------------------------------------- */
 
 export const SEGMENTOS = Object.freeze({
@@ -99,14 +120,57 @@ export const SUFIJOS_CONJUNTO = Object.freeze({ TEST: 'en prueba', OPT: 'ganador
 /** Formatos de anuncio (punto 6): IMG para imagen o carrusel, VID para video o reel. */
 export const FORMATOS = Object.freeze({ IMG: 'imagen o carrusel', VID: 'video o reel' });
 
-/** Talentos reconocidos (punto 6). Solo se escriben cuando salen en camara. */
-export const TALENTOS = Object.freeze(['TATIANA', 'JUANPA', 'SOFIA', 'ALEJA', 'HARRY']);
+/**
+ * Talentos reconocidos (punto 6). Solo se escriben cuando salen en camara, y
+ * el campo es OPCIONAL: la mayoria de anuncios no lo llevan.
+ *
+ * Al nombre se le puede pegar un lugar cuando hace falta distinguir
+ * ("SOFIA MEDELLIN", "SOFIA PUTUMAYO"). Eso lo decide la persona; el sistema
+ * no lo inventa ni lo completa solo.
+ */
+export const TALENTOS = Object.freeze(['ALEJA', 'SARA', 'SOFIA']);
+
+/**
+ * Comprueba un valor de talento: tiene que empezar por uno de la lista, y
+ * despues admite palabras sueltas (el lugar).
+ * @returns {{ok:boolean, motivo:string}}
+ */
+export function validarTalento(valor) {
+  const t = normalizarCampo(valor);
+  if (!t) return { ok: true, motivo: '' };
+
+  const primero = t.split(' ')[0];
+  if (!TALENTOS.includes(primero)) {
+    return {
+      ok: false,
+      motivo: `"${primero}" no es un talento. Los validos son: ${TALENTOS.join(', ')}.`,
+    };
+  }
+  return { ok: true, motivo: '' };
+}
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 10 — Campanas regionales de reconocimiento                          */
+/*  Punto 10 � Campanas regionales de reconocimiento                          */
 /* -------------------------------------------------------------------------- */
 
-export const REGIONES = Object.freeze(['PASTO', 'IPIALES', 'TUQUERRES', 'PUTUMAYO', 'MEDELLIN', 'NEIVA']);
+/**
+ * Regiones para campanas regionales (punto 10).
+ *
+ * TUQUERRES dejo de ser region propia: ahora entra dentro de NARINO, junto con
+ * Pasto y La Union. Ojo con la diferencia: TUQUERRES sigue siendo una SEDE
+ * (la tienda existe y se pauta), lo que desaparecio es la region.
+ */
+export const REGIONES = Object.freeze(['PASTO', 'IPIALES', 'NARINO', 'PUTUMAYO', 'MEDELLIN', 'NEIVA']);
+
+/** Que sedes cubre cada region, para poder avisar si algo no cuadra. */
+export const SEDES_POR_REGION = Object.freeze({
+  PASTO: ['LA16', 'SEBASTIAN', 'LICEO'],
+  IPIALES: ['VICTORIA', 'ZAFIRO', 'MARKUS'],
+  NARINO: ['LA16', 'SEBASTIAN', 'LICEO', 'VICTORIA', 'ZAFIRO', 'MARKUS', 'TUQUERRES', 'LAUNION'],
+  PUTUMAYO: ['ORITO', 'HORMIGA', 'PTOASIS', 'MOCOA'],
+  MEDELLIN: ['MEDELLIN'],
+  NEIVA: ['NEIVA'],
+});
 export const TIPOS_REGIONAL = Object.freeze({
   ORGANICO: 'contenido de la parrilla que se impulsa con pauta',
   COMERCIAL: 'estrategias comerciales de la compania',
@@ -115,7 +179,7 @@ export const TIPOS_REGIONAL = Object.freeze({
 });
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 9 — Presupuestos (ABO, siempre a nivel de conjunto)                 */
+/*  Punto 9 � Presupuestos (ABO, siempre a nivel de conjunto)                 */
 /* -------------------------------------------------------------------------- */
 
 export const PRESUPUESTO = Object.freeze({
@@ -159,7 +223,7 @@ export function validarPresupuesto(cop, tipo = 'sede') {
 const fmt = (n) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(n));
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 2 — Reglas generales de escritura                                   */
+/*  Punto 2 � Reglas generales de escritura                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -174,7 +238,11 @@ const fmt = (n) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).
 export function normalizarCampo(texto) {
   return String(texto ?? '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // quita tildes y la virgulilla de la n
+    // Los diacriticos que NFD separo del caracter base. Va escrito con
+    // escapes a proposito: si el archivo se reguarda con otra codificacion,
+    // un rango escrito con los caracteres literales se corrompe y deja de
+    // quitar tildes sin que nadie se entere.
+    .replace(/[̀-ͯ]/g, '')
     .toUpperCase()
     .replace(CARACTERES_PROHIBIDOS, ' ')
     .replace(/\|/g, ' ') // el pipe solo lo pone el constructor, nunca el contenido
@@ -205,7 +273,7 @@ function unir(campos) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 4 — Nivel 1: Campana                                                */
+/*  Punto 4 � Nivel 1: Campana                                                */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -223,7 +291,7 @@ export function nombreCampana({ numero, sede, fecha = new Date() }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 5 — Nivel 2: Conjunto de anuncios                                   */
+/*  Punto 5 � Nivel 2: Conjunto de anuncios                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -259,7 +327,7 @@ export function nombreConjunto({ numeroCampana, sede, numeroConjunto, segmento, 
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 6 — Nivel 3: Anuncio                                                */
+/*  Punto 6 � Nivel 3: Anuncio                                                */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -295,7 +363,7 @@ export function nombreAnuncio({ numero, sede, formato, referencia, talento = '',
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Punto 10 — Campanas regionales                                            */
+/*  Punto 10 � Campanas regionales                                            */
 /* -------------------------------------------------------------------------- */
 
 /** R<numero> | <REGION> | <TIPO> | <DDMMAA> */
@@ -356,7 +424,7 @@ export function siguienteConsecutivoCampana(nombres, sede) {
     // hace falta para distinguir 'C3 | NEIVA | ...' de 'C3 NEIVANDO ...'.
     const limpio = String(bruto ?? '')
       .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
+      .replace(/[̬-ͯ]/g, '')
       .toUpperCase()
       .trim();
     const hit = patron.exec(limpio);
@@ -408,7 +476,9 @@ function siguientePorPrefijo(nombres, prefijo) {
 
 // El distintivo es de 3 caracteres pero no siempre son letras: L16 lleva digitos.
 const DIST = '[A-Z0-9]{3}';
-const SEDE_CODIGO = CODIGOS_SEDE.join('|');
+// Solo las sedes activas: un nombre con LAUNION no debe pasar la auditoria
+// mientras la tienda no este abierta.
+const SEDE_CODIGO = CODIGOS_SEDE_ACTIVA.join('|');
 const SEGMENTO = CODIGOS_SEGMENTO.map((s) => s.replace('-', '\\-')).join('|');
 const REGION = REGIONES.join('|');
 const TIPO_REGIONAL = Object.keys(TIPOS_REGIONAL).join('|');
@@ -440,17 +510,167 @@ export function auditarNombre(nombre, nivel) {
   const problemas = [];
   const n = String(nombre ?? '');
 
-  if (n !== n.trim()) problemas.push('Tiene espacios sobrantes al inicio o al final.');
-  if (/\s{2,}/.test(n)) problemas.push('Tiene dobles espacios (punto 2).');
-  if (TIENE_CARACTER_PROHIBIDO.test(n)) problemas.push('Usa caracteres prohibidos / \\ # % & " (punto 2).');
-  if (/[À-ſ]/.test(n)) problemas.push('Tiene tildes o n con virgulilla (punto 2).');
-  if (n !== n.toUpperCase()) problemas.push('No esta en mayuscula sostenida (punto 2).');
-  if (/-\s*COPIA/i.test(n)) problemas.push('Conserva el sufijo "- Copia" de Meta (punto 11, regla 4).');
-  if (/NUEVO (ANUNCIO|CONJUNTO|CAMPANA)/i.test(n)) problemas.push('Conserva el nombre por defecto de Meta (punto 11, regla 4).');
-  if (!patron.test(n)) problemas.push(`No cumple el formato de ${nivel}: ${patron.source}`);
+  if (n !== n.trim()) problemas.push('Tiene espacios sobrantes al principio o al final.');
+  if (/\s{2,}/.test(n)) problemas.push('Tiene dos espacios seguidos. El separador es " | ", con un espacio a cada lado.');
+  if (TIENE_CARACTER_PROHIBIDO.test(n)) {
+    problemas.push('Lleva alguno de estos caracteres, que el manual prohibe: /  \\  #  %  &  "  \'');
+  }
+  if (/[ì-ſ]/.test(n)) problemas.push('Lleva tildes o ñ. Escribelo sin ellas: NARINO, TUQUERRES, SEBASTIAN.');
+  if (n !== n.toUpperCase()) problemas.push('Hay minusculas. El nombre va entero en MAYUSCULA.');
+  if (/-\s*COPIA/i.test(n)) problemas.push('Todavia dice "- Copia". Eso lo pone Meta al duplicar; hay que quitarlo.');
+  if (/NUEVO (ANUNCIO|CONJUNTO|CAMPANA)/i.test(n)) {
+    problemas.push('Todavia tiene el nombre por defecto de Meta ("Nuevo anuncio", "Nuevo conjunto").');
+  }
 
-  return { ok: problemas.length === 0, problemas: [...new Set(problemas)] };
+  // El formato se explica con un ejemplo y, cuando se puede, diciendo QUE
+  // CAMPO esta mal. Nunca con la expresion regular: un
+  // "^C\d{1,5} \| (?:LA16|SEBASTIAN|...)" no le dice nada a nadie.
+  if (!patron.test(n)) {
+    const porCampo = diagnosticarCampos(n, nivel);
+    if (porCampo.length > 0) problemas.push(...porCampo);
+    else problemas.push(`No tiene la forma de un nombre de ${NIVELES[nivel]?.que || nivel}.`);
+  }
+
+  return {
+    ok: problemas.length === 0,
+    problemas: [...new Set(problemas)],
+    // Con que comparar, para poder enseñarlo al lado del error.
+    formato: NIVELES[nivel]?.formato || '',
+    ejemplo: NIVELES[nivel]?.ejemplo || '',
+    ayuda: NIVELES[nivel]?.ayuda || '',
+    patron: patron.source,
+  };
 }
+
+/**
+ * Mira campo por campo y dice cual esta mal.
+ *
+ * "No cumple el formato" obliga a comparar a ojo contra el ejemplo. Decir
+ * "BOGOTA no es una sede" o "faltan los espacios alrededor de la barra" es la
+ * diferencia entre corregirlo en dos segundos o en dos minutos.
+ */
+function diagnosticarCampos(nombre, nivel) {
+  const problemas = [];
+  const n = String(nombre).trim();
+
+  // Barras sin espacios alrededor: el error mas comun al escribir a mano.
+  if (/\S\|/.test(n) || /\|\S/.test(n)) {
+    problemas.push('El separador es " | " con un espacio a cada lado de la barra.');
+  }
+
+  const campos = n.split(' | ');
+
+  if (nivel === 'campana') {
+    if (campos.length !== 3) {
+      problemas.push(
+        `Un nombre de campana lleva 3 campos separados por " | " y este tiene ${campos.length}.`,
+      );
+      return problemas;
+    }
+
+    const [consecutivo, sede, fecha] = campos;
+
+    if (!/^C\d{1,5}$/.test(consecutivo)) {
+      problemas.push(`"${consecutivo}" no es un consecutivo. Va la letra C pegada al numero: C4, C12.`);
+    }
+    if (!CODIGOS_SEDE.includes(sede)) {
+      problemas.push(`"${sede}" no es una sede. Las validas son: ${CODIGOS_SEDE.join(', ')}.`);
+    }
+    if (!/^\d{6}$/.test(fecha)) {
+      problemas.push(`"${fecha}" no es una fecha DDMMAA. Van seis digitos sin barras: 230926 es 23/09/26.`);
+    }
+    return problemas;
+  }
+
+  if (nivel === 'conjunto') {
+    if (campos.length < 4 || campos.length > 5) {
+      problemas.push(
+        `Un nombre de conjunto lleva 4 campos (o 5 con sufijo) y este tiene ${campos.length}.`,
+      );
+      return problemas;
+    }
+
+    const [consecutivo, dist, cjto, segmento, sufijo] = campos;
+    const distintivos = Object.values(SEDES).map((s) => s.dist).filter(Boolean);
+
+    if (!/^C\d{1,5}$/.test(consecutivo)) problemas.push(`"${consecutivo}" no es un consecutivo de campana (C4, C12).`);
+    if (!distintivos.includes(dist)) {
+      problemas.push(`"${dist}" no es un distintivo de sede. Los validos son: ${distintivos.join(', ')}.`);
+    }
+    if (!/^CJTO\d{1,4}$/.test(cjto)) problemas.push(`"${cjto}" deberia ser CJTO con su numero pegado: CJTO1, CJTO2.`);
+    if (!CODIGOS_SEGMENTO.includes(segmento)) {
+      problemas.push(`"${segmento}" no es un segmento. Los validos son: ${CODIGOS_SEGMENTO.join(', ')}.`);
+    }
+    if (sufijo !== undefined && !['TEST', 'OPT'].includes(sufijo)) {
+      problemas.push(`"${sufijo}" no es un sufijo valido. Solo TEST, OPT, o ninguno.`);
+    }
+    return problemas;
+  }
+
+  if (nivel === 'anuncio') {
+    if (campos.length < 4) {
+      problemas.push(`Un nombre de anuncio lleva al menos 4 campos y este tiene ${campos.length}.`);
+      return problemas;
+    }
+
+    const [ads, dist, formato] = campos;
+    const distintivos = Object.values(SEDES).map((s) => s.dist).filter(Boolean);
+
+    if (!/^ADS\d{1,4}$/.test(ads)) problemas.push(`"${ads}" deberia ser ADS con su numero pegado: ADS1, ADS2.`);
+    if (!distintivos.includes(dist)) {
+      problemas.push(`"${dist}" no es un distintivo de sede. Los validos son: ${distintivos.join(', ')}.`);
+    }
+    if (!['IMG', 'VID'].includes(formato)) {
+      problemas.push(`"${formato}" no es un formato. Solo IMG (imagen o carrusel) o VID (video o reel).`);
+    }
+    return problemas;
+  }
+
+  return problemas;
+}
+
+/**
+ * Como se le explica cada nivel a una persona: el patron en palabras, un
+ * ejemplo real y la pista de lo que suele estar mal.
+ */
+export const NIVELES = Object.freeze({
+  campana: {
+    que: 'campana',
+    formato: 'C<numero> | SEDE | DDMMAA',
+    ejemplo: 'C4 | NEIVA | 230926',
+    ayuda:
+      'Tres campos separados por " | ": el consecutivo pegado a la C, el codigo de la sede y la fecha ' +
+      'de seis digitos sin barras. Sedes validas: ' + Object.keys(SEDES).join(', ') + '.',
+  },
+  conjunto: {
+    que: 'conjunto de anuncios',
+    formato: 'C<numero> | DIST | CJTO<numero> | SEGMENTO [| TEST u OPT]',
+    ejemplo: 'C4 | NEI | CJTO1 | AND-CRED | TEST',
+    ayuda:
+      'El mismo C# de la campana, el distintivo de tres letras de la sede, CJTO con su numero y el ' +
+      'segmento. El sufijo TEST u OPT es opcional.',
+  },
+  anuncio: {
+    que: 'anuncio',
+    formato: 'ADS<numero> | DIST | IMG o VID | REFERENCIA [| TALENTO] [| L1 o L2]',
+    ejemplo: 'ADS1 | NEI | IMG | TECNO CAMON 50 PRO',
+    ayuda:
+      'ADS con su numero, el distintivo de la sede, el formato (IMG para imagen, VID para video) y la ' +
+      'referencia del equipo como esta en inventario.',
+  },
+  campanaRegional: {
+    que: 'campana regional',
+    formato: 'CR<numero> | REGION | TIPO | DDMMAA',
+    ejemplo: 'CR2 | PASTO | ORGANICO | 230926',
+    ayuda: 'Para campanas de reconocimiento, no de venta de sede (punto 10).',
+  },
+  conjuntoRegional: {
+    que: 'conjunto regional',
+    formato: 'CR<numero> | CJTO<numero> | SEGMENTACION',
+    ejemplo: 'CR2 | CJTO1 | GEO',
+    ayuda: 'Para campanas de reconocimiento (punto 10).',
+  },
+});
 
 /* -------------------------------------------------------------------------- */
 

@@ -202,6 +202,25 @@
 
     <div id="cargando" class="cargando oculto"><div class="giro"></div></div>
 
+    <!-- ================== MODAL ================== -->
+    <div id="modal" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <div class="modal-caja">
+        <header class="modal-cabeza">
+          <span class="modal-icono" id="modal-icono">!</span>
+          <h2 id="modal-titulo">Título</h2>
+        </header>
+
+        <div class="modal-cuerpo" id="modal-cuerpo"></div>
+
+        <details class="modal-tecnico oculto" id="modal-tecnico">
+          <summary>Ver el detalle técnico</summary>
+          <pre id="modal-tecnico-texto"></pre>
+        </details>
+
+        <footer class="modal-pie" id="modal-pie"></footer>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>

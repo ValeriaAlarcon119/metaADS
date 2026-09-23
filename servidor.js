@@ -97,6 +97,32 @@ function responderError(res, codigo, mensaje, extra = {}) {
   responderJson(res, codigo, { ok: false, error: mensaje, ...extra });
 }
 
+/**
+ * Convierte un error en algo que la pantalla pueda enseñar bien.
+ *
+ * Los errores marcados con `amigable` ya vienen escritos para una persona: se
+ * pasan tal cual con su titulo. Los demas se limpian de los prefijos tecnicos
+ * ("builder: ", "campanas: ") que solo sirven para saber de que modulo salieron.
+ */
+function errorParaLaPantalla(error) {
+  const crudo = String(error?.message || error);
+
+  if (error?.amigable) {
+    return { titulo: error.titulo || 'No se pudo continuar', error: crudo, amigable: true };
+  }
+
+  const sinPrefijo = crudo.replace(/^(builder|campanas|creatives|creativos-sede|targeting|config|lineas|nomenclatura):\s*/, '');
+
+  return {
+    titulo: 'No se pudo preparar la campana',
+    error: sinPrefijo,
+    amigable: false,
+    // El original, por si hace falta para depurar. La pantalla lo esconde
+    // detras de un "ver detalle tecnico".
+    tecnico: crudo === sinPrefijo ? '' : crudo,
+  };
+}
+
 async function leerCuerpo(req, maxBytes = 2 * 1024 * 1024) {
   const trozos = [];
   let total = 0;
@@ -792,7 +818,10 @@ async function manejar(req, res) {
 
     return servirEstatico(ruta, res);
   } catch (error) {
-    if (!res.headersSent) return responderError(res, 500, error.message);
+    if (!res.headersSent) {
+      const { titulo, error: mensaje, amigable, tecnico } = errorParaLaPantalla(error);
+      return responderError(res, 400, mensaje, { titulo, amigable, tecnico });
+    }
     res.end();
   }
 }

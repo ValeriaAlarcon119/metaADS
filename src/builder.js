@@ -56,6 +56,7 @@ import {
   nombreConjunto,
   nombreAnuncio,
   auditarNombre,
+  NIVELES,
   validarPresupuesto,
   obtenerSedeNomenclatura,
   fechaDDMMAA,
@@ -309,10 +310,15 @@ export async function planificarEstructura(cfg) {
       if (aMano !== nombreDeCampana) {
         const numeroAMano = Number(/^C(\d{1,5})/i.exec(aMano)?.[1]);
         if (!Number.isInteger(numeroAMano)) {
-          throw new Error(
-            `builder: el nombre de campana escrito a mano ("${aMano}") no empieza por C<numero>, ` +
-              'asi que no se puede derivar el C# que necesita el nombre del conjunto (punto 5).',
+          const e = new Error(
+            `El nombre "${aMano}" no empieza por C seguido de un numero.\n` +
+              '  Ese numero es el consecutivo de la campana, y hace falta porque tambien va en el\n' +
+              '  nombre del conjunto (punto 5 del manual).\n' +
+              `  Formato: ${NIVELES.campana.formato}\n  Ejemplo: ${NIVELES.campana.ejemplo}`,
           );
+          e.amigable = true;
+          e.titulo = 'Falta el consecutivo de la campana';
+          throw e;
         }
         avisos.push(
           `El nombre de la campana se fijo a mano: "${aMano}" en vez de "${nombreDeCampana}". ` +
@@ -475,12 +481,22 @@ export async function planificarEstructura(cfg) {
   for (const item of auditorias) {
     if (!item.aplica) continue;
     const r = auditarNombre(item.nombre, item.nivel);
-    if (!r.ok) problemasDeNombre.push(`"${item.nombre}" (${item.nivel}): ${r.problemas.join(' ')}`);
-  }
-  if (problemasDeNombre.length > 0) {
-    throw new Error(
-      'builder: hay nombres que no cumplen el manual de nomenclatura v1.2:\n  - ' + problemasDeNombre.join('\n  - '),
+    if (r.ok) continue;
+
+    // El mensaje tiene que servirle a quien lo lee en pantalla: que esta mal,
+    // con que compararlo y un ejemplo que funcione. Nunca la expresion regular.
+    problemasDeNombre.push(
+      `El nombre "${item.nombre}" no sirve como nombre de ${r.ayuda ? NIVELES[item.nivel].que : item.nivel}.\n` +
+        r.problemas.map((p) => `  · ${p}`).join('\n') +
+        `\n  Formato: ${r.formato}\n  Ejemplo: ${r.ejemplo}\n  ${r.ayuda}`,
     );
+  }
+
+  if (problemasDeNombre.length > 0) {
+    const e = new Error(problemasDeNombre.join('\n\n'));
+    e.amigable = true;
+    e.titulo = 'Ese nombre no cumple el manual';
+    throw e;
   }
 
   if (campanaExistenteId) {

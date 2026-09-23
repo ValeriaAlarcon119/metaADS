@@ -59,6 +59,128 @@ function cargando(activo) {
   $('#cargando').classList.toggle('oculto', !activo);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Modal                                                                     */
+/* -------------------------------------------------------------------------- */
+/**
+ *  Reemplaza a alert() y confirm() del navegador, que son feos y además
+ *  cortan el hilo: ni se pueden leer con calma ni permiten enseñar un ejemplo
+ *  al lado del error. Este devuelve una promesa con el botón que se pulsó.
+ */
+
+const ICONOS = { error: '✕', aviso: '!', pregunta: '?', ok: '✓' };
+
+let cerrarModal = null;
+
+/**
+ * @param {object} opciones
+ * @param {string} opciones.titulo
+ * @param {string} opciones.cuerpo        HTML ya escapado por quien llama
+ * @param {'error'|'aviso'|'pregunta'|'ok'} [opciones.tipo='error']
+ * @param {string} [opciones.tecnico]     detalle plegado, para depurar
+ * @param {{texto:string, valor:any, clase?:string}[]} [opciones.botones]
+ * @returns {Promise<any>} el valor del botón pulsado
+ */
+function modal({ titulo, cuerpo, tipo = 'error', tecnico = '', botones }) {
+  const caja = $('#modal');
+  const lista = botones || [{ texto: 'Entendido', valor: true, clase: 'btn-primario' }];
+
+  caja.className = `modal modal-${tipo}`;
+  $('#modal-icono').textContent = ICONOS[tipo] || '!';
+  $('#modal-titulo').textContent = titulo;
+  $('#modal-cuerpo').innerHTML = cuerpo;
+
+  mostrar('#modal-tecnico', Boolean(tecnico));
+  $('#modal-tecnico').open = false;
+  $('#modal-tecnico-texto').textContent = tecnico || '';
+
+  return new Promise((resolver) => {
+    const terminar = (valor) => {
+      caja.classList.add('oculto');
+      document.removeEventListener('keydown', alTeclado);
+      cerrarModal = null;
+      resolver(valor);
+    };
+
+    function alTeclado(e) {
+      // Escape siempre cancela: es lo que espera cualquiera.
+      if (e.key === 'Escape') terminar(lista.find((b) => b.valor === false)?.valor ?? false);
+      if (e.key === 'Enter') terminar(lista.at(-1).valor);
+    }
+
+    $('#modal-pie').innerHTML = '';
+    lista.forEach((b, i) => {
+      const boton = document.createElement('button');
+      boton.className = `btn ${b.clase || ''}`;
+      boton.textContent = b.texto;
+      boton.addEventListener('click', () => terminar(b.valor));
+      $('#modal-pie').append(boton);
+      if (i === lista.length - 1) setTimeout(() => boton.focus(), 30);
+    });
+
+    cerrarModal = terminar;
+    document.addEventListener('keydown', alTeclado);
+    caja.classList.remove('oculto');
+  });
+}
+
+/** Pregunta de sí o no. Sustituye a confirm(). */
+function preguntar({ titulo, cuerpo, si = 'Continuar', no = 'Cancelar', tipo = 'pregunta' }) {
+  return modal({
+    titulo,
+    cuerpo,
+    tipo,
+    botones: [
+      { texto: no, valor: false },
+      { texto: si, valor: true, clase: tipo === 'error' ? 'btn-peligro' : 'btn-primario' },
+    ],
+  });
+}
+
+/**
+ * Enseña un error del servidor.
+ *
+ * Los mensajes vienen con saltos de línea y viñetas "·". Se convierten en
+ * párrafos y lista, y el bloque "Formato / Ejemplo" se saca aparte para que
+ * se vea de un golpe con qué hay que comparar.
+ */
+function modalDeError(datos) {
+  const texto = String(datos.error || datos.message || 'Algo salió mal.');
+
+  const lineas = texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  const viñetas = [];
+  const parrafos = [];
+  let formato = '';
+  let ejemplo = '';
+  let ayuda = '';
+
+  for (const linea of lineas) {
+    if (linea.startsWith('·')) viñetas.push(linea.slice(1).trim());
+    else if (/^Formato:/i.test(linea)) formato = linea.replace(/^Formato:\s*/i, '');
+    else if (/^Ejemplo:/i.test(linea)) ejemplo = linea.replace(/^Ejemplo:\s*/i, '');
+    else if (formato && !ayuda && !linea.includes('|')) ayuda = linea;
+    else parrafos.push(linea);
+  }
+
+  const cuerpo =
+    parrafos.map((p) => `<p>${esc(p)}</p>`).join('') +
+    (viñetas.length ? `<ul>${viñetas.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>` : '') +
+    (formato || ejemplo
+      ? `<div class="modal-formato">
+           ${formato ? `<div><b>Formato</b><code>${esc(formato)}</code></div>` : ''}
+           ${ejemplo ? `<div class="ejemplo"><b>Ejemplo</b><code>${esc(ejemplo)}</code></div>` : ''}
+         </div>`
+      : '') +
+    (ayuda ? `<p class="sutil">${esc(ayuda)}</p>` : '');
+
+  return modal({
+    titulo: datos.titulo || 'No se pudo continuar',
+    cuerpo: cuerpo || `<p>${esc(texto)}</p>`,
+    tipo: 'error',
+    tecnico: datos.tecnico || '',
+  });
+}
+
 async function pedir(ruta, opciones = {}) {
   const res = await fetch(ruta, {
     headers: { 'Content-Type': 'application/json' },
@@ -67,6 +189,7 @@ async function pedir(ruta, opciones = {}) {
   const datos = await res.json();
   if (!res.ok || datos.ok === false) {
     const error = new Error(datos.error || `Error ${res.status}`);
+    // Se guardan titulo y detalle tecnico para que el modal los pueda usar.
     error.datos = datos;
     throw error;
   }
@@ -270,7 +393,8 @@ async function planificar() {
     pintarTodo();
     return true;
   } catch (error) {
-    alert(`No se pudo preparar la campaña:\n\n${error.message}`);
+    cargando(false);
+    await modalDeError(error.datos || { error: error.message });
     return false;
   } finally {
     cargando(false);
@@ -916,15 +1040,19 @@ async function guardarEtapa1(evento) {
   const nombre = f.elements.nombre.value.trim();
   const compartir = f.elements.compartirPresupuesto.checked;
 
-  if (
-    compartir &&
-    !confirm(
-      'Vas a permitir que los conjuntos se presten presupuesto entre sí.\n\n' +
-        'Meta podrá mover hasta un 20 % del presupuesto de un conjunto a otro, así que el reparto ' +
-        'que apruebes dejará de ser exacto.\n\n¿Continuar?',
-    )
-  ) {
-    return;
+  if (compartir) {
+    const sigue = await preguntar({
+      titulo: 'Los conjuntos se prestarán presupuesto',
+      tipo: 'aviso',
+      cuerpo:
+        '<p>Meta podrá mover hasta un <strong>20 %</strong> del presupuesto de un conjunto a otro que ' +
+        'crea que rinde mejor.</p>' +
+        '<p>Con un conjunto por producto, eso significa que el iPhone se puede comer la plata del ' +
+        'Android. El reparto que apruebes dejará de ser exacto.</p>',
+      si: 'Sí, permitirlo',
+      no: 'No, dejarlo fijo',
+    });
+    if (!sigue) return;
   }
 
   estado.ajustes.campana = { compartirPresupuesto: compartir };
@@ -995,15 +1123,19 @@ async function guardarEtapa2(evento) {
       .map(([k]) => `${estado.plan.conjuntos[i].nombre}: ${k}`),
   );
 
-  if (
-    encendidos.length > 0 &&
-    !confirm(
-      'Vas a ACTIVAR expansión de público:\n\n' +
-        encendidos.join('\n') +
-        '\n\nMeta dejará de respetar parte de la segmentación que aprobaste.\n\n¿Continuar?',
-    )
-  ) {
-    return;
+  if (encendidos.length > 0) {
+    const sigue = await preguntar({
+      titulo: 'Vas a activar expansión de público',
+      tipo: 'aviso',
+      cuerpo:
+        '<p>Meta dejará de respetar parte de la segmentación que apruebes:</p>' +
+        `<ul>${encendidos.map((e) => `<li><code>${esc(e)}</code></li>`).join('')}</ul>` +
+        '<p class="sutil">Es una decisión válida y a veces baja el costo por conversación, pero ' +
+        'conviene que sea a propósito.</p>',
+      si: 'Sí, activarla',
+      no: 'No, dejarla apagada',
+    });
+    if (!sigue) return;
   }
 
   estado.ajustes.conjuntos = fusionarConjuntos(conjuntos);
@@ -1103,7 +1235,26 @@ function manejarPaso(paso, detalle) {
 }
 
 async function enviarAMeta() {
-  if (!confirm('Se van a crear los objetos en Meta, en estado BORRADOR (PAUSED).\n\n¿Continuar?')) return;
+  const p = estado.plan;
+
+  const sigue = await preguntar({
+    titulo: 'Enviar a Meta en borrador',
+    tipo: 'pregunta',
+    cuerpo:
+      `<p>Se van a crear <strong>${p.totales.objetos} objetos</strong> en la cuenta ` +
+      `<code>${esc(p.cuenta.etiqueta)}</code>, todos en estado <strong>PAUSED</strong>.</p>` +
+      `<ul>
+         <li>${p.campana.crear ? '1 campaña' : 'Se reutiliza la campaña'}</li>
+         <li>${p.totales.conjuntos} conjunto(s) · ${esc(p.totales.presupuestoFormateado)} al día</li>
+         <li>${p.totales.anuncios} anuncio(s)</li>
+       </ul>` +
+      '<p class="sutil">En borrador no entregan impresiones ni gastan presupuesto. Les das play tú ' +
+      'desde Ads Manager cuando los hayas revisado allí.</p>',
+    si: 'Enviar en borrador',
+    no: 'Todavía no',
+  });
+
+  if (!sigue) return;
 
   estado.aprobaciones.final = true;
 
@@ -1131,15 +1282,24 @@ async function enviarAMeta() {
   }
 
   if (!respuesta.ok || !respuesta.body) {
-    let mensaje = `Error ${respuesta.status}`;
+    let datos = { error: `Error ${respuesta.status}`, titulo: 'No se envió nada a Meta' };
     try {
-      mensaje = (await respuesta.json()).error || mensaje;
+      datos = { titulo: 'No se envió nada a Meta', ...(await respuesta.json()) };
     } catch {
       /* la respuesta no era JSON */
     }
-    apuntar(mensaje, 'l-mal');
+
+    apuntar(datos.error, 'l-mal');
     $('#creando-titulo').textContent = 'No se envió nada';
     mostrar('#acciones-final', true);
+
+    await modalDeError(datos);
+
+    // Si el plan caducó hay que volver a planificar: quedarse aquí no sirve.
+    if (datos.recalcular) {
+      estado.aprobaciones = { campana: false, conjunto: false, anuncios: false, final: false };
+      if (await planificar()) irA(1);
+    }
     return;
   }
 
@@ -1198,6 +1358,18 @@ function procesarEvento(evento) {
         evento.colgando.forEach((c) => apuntar(`  · ${c}`, 'l-aviso'));
       }
       mostrar('#acciones-final', true);
+
+      modal({
+        titulo: 'Meta rechazó la creación',
+        tipo: 'error',
+        cuerpo:
+          `<p>${esc(evento.mensaje.split('\n')[0])}</p>` +
+          (evento.colgando?.length
+            ? '<p><strong>Quedaron objetos a medias en Ads Manager.</strong> Revísalos o elimínalos:</p>' +
+              `<ul>${evento.colgando.map((c) => `<li><code>${esc(c)}</code></li>`).join('')}</ul>`
+            : '<p class="sutil">No quedó nada a medias.</p>'),
+        tecnico: evento.mensaje,
+      });
       break;
 
     case 'fin':
@@ -1312,8 +1484,17 @@ function conectar() {
   );
 
   $$('[data-cancelar]').forEach((b) =>
-    b.addEventListener('click', () => {
-      if (confirm('Cancelar y volver a la lista de campañas.\n\nNo se ha enviado nada a Meta.')) reiniciar();
+    b.addEventListener('click', async () => {
+      const sigue = await preguntar({
+        titulo: '¿Descartar y volver al inicio?',
+        tipo: 'pregunta',
+        cuerpo:
+          '<p>No se ha enviado <strong>nada</strong> a Meta, así que no queda ningún objeto creado.</p>' +
+          '<p class="sutil">Se pierden los cambios que hayas hecho en las etapas.</p>',
+        si: 'Sí, descartar',
+        no: 'Seguir aquí',
+      });
+      if (sigue) reiniciar();
     }),
   );
 

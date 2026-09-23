@@ -56,6 +56,15 @@ import {
   productosDeLaCarpeta,
 } from '../src/interprete.js';
 import { generarCopys } from '../src/copys.js';
+import {
+  CODIGOS_OBJETIVO,
+  OBJETIVO_POR_DEFECTO,
+  obtenerObjetivo,
+  prefijoDe,
+  usaWhatsApp,
+  camposDeMeta,
+  listarParaLaInterfaz,
+} from '../src/objetivos.js';
 import { cuentaDeSede } from '../src/config.js';
 import { resolverCreativo, listarCreativosDeSede } from '../src/creativos-sede.js';
 
@@ -222,7 +231,8 @@ try {
 comprobar('Todas las filas se asignaron a una sede', registros.every((r) => r.sede),
   registros.filter((r) => !r.sede).map((r) => r.tienda).join(', '));
 
-for (const codigo of nom.CODIGOS_SEDE) {
+// Solo las sedes abiertas: La Union todavia no tiene linea ni cuenta.
+for (const codigo of nom.CODIGOS_SEDE_ACTIVA) {
   try {
     const r = lineaDeSede(RUTA_LINEAS, codigo);
     comprobar(
@@ -1038,7 +1048,85 @@ comprobar('Un producto de nombre largo sigue cabiendo en los titulos', (() => {
 
 /* -------------------------------------------------------------------------- */
 
-seccion('19. Los interruptores de expansion se explican y se pueden cambiar');
+seccion('19. Objetivo, sedes, regiones y talentos');
+
+comprobar('Hay objetivos definidos', CODIGOS_OBJETIVO.length >= 3);
+comprobar('El objetivo por defecto es mensajes a WhatsApp', OBJETIVO_POR_DEFECTO === 'MENSAJES_WHATSAPP');
+
+for (const codigo of CODIGOS_OBJETIVO) {
+  const o = obtenerObjetivo(codigo);
+  comprobar(
+    `"${o.etiqueta}" declara los tres campos de Meta por separado`,
+    Boolean(o.objetivoMeta && o.optimizationGoal && o.billingEvent),
+    `${o.objetivoMeta} · ${o.optimizationGoal} · ${o.billingEvent}`,
+  );
+}
+
+comprobar('Mensajes a WhatsApp usa prefijo C (campana de sede)', prefijoDe('MENSAJES_WHATSAPP') === 'C');
+comprobar('Reconocimiento usa prefijo R (regional)', prefijoDe('RECONOCIMIENTO') === 'R');
+comprobar('Trafico usa prefijo R (regional)', prefijoDe('TRAFICO') === 'R');
+comprobar('Solo el de WhatsApp pide numero', usaWhatsApp('MENSAJES_WHATSAPP') && !usaWhatsApp('TRAFICO'));
+comprobar('Solo el de WhatsApp lleva destination_type', (() => {
+  return camposDeMeta('MENSAJES_WHATSAPP').destination_type === 'WHATSAPP' &&
+    camposDeMeta('RECONOCIMIENTO').destination_type === null;
+})());
+comprobar('Un objetivo inventado se rechaza con la lista de validos', (() => {
+  try {
+    obtenerObjetivo('VENTAS_MAGICAS');
+    return false;
+  } catch (e) {
+    return e.amigable === true && e.message.includes('MENSAJES_WHATSAPP');
+  }
+})());
+comprobar('Se distingue lo ensayado de lo no ensayado contra Meta', (() => {
+  const l = listarParaLaInterfaz();
+  return l.some((o) => o.ensayado) && l.some((o) => !o.ensayado);
+})());
+
+/* --- Sedes y regiones ------------------------------------------------- */
+
+comprobar('La Union existe pero no esta activa', (() => {
+  return nom.CODIGOS_SEDE.includes('LAUNION') && !nom.CODIGOS_SEDE_ACTIVA.includes('LAUNION');
+})());
+comprobar('No se puede nombrar una campana de La Union todavia', !nom.auditarNombre('C1 | LAUNION | 230926', 'campana').ok);
+comprobar('La Union no inventa distintivo ni cuenta', (() => {
+  const f = nom.SEDES.LAUNION;
+  return f.dist === null && f.cuenta === '' && Boolean(f.pendiente);
+})());
+comprobar('Las 13 sedes de siempre siguen activas', nom.CODIGOS_SEDE_ACTIVA.length === 13);
+
+comprobar('TUQUERRES ya no es una region', !nom.REGIONES.includes('TUQUERRES'));
+comprobar('NARINO si es una region', nom.REGIONES.includes('NARINO'));
+comprobar('TUQUERRES sigue siendo una SEDE', nom.CODIGOS_SEDE_ACTIVA.includes('TUQUERRES'));
+comprobar('NARINO incluye Tuquerres y La Union', (() => {
+  const s = nom.SEDES_POR_REGION.NARINO;
+  return s.includes('TUQUERRES') && s.includes('LAUNION') && s.includes('LA16');
+})());
+comprobar('Un nombre regional con NARINO es valido', nom.auditarNombre('R7 | NARINO | GEO | 230926', 'campanaRegional').ok);
+comprobar('Un nombre regional con TUQUERRES ya no vale', !nom.auditarNombre('R7 | TUQUERRES | GEO | 230926', 'campanaRegional').ok);
+
+/* --- Talentos --------------------------------------------------------- */
+
+comprobar('Los talentos son ALEJA, SARA y SOFIA', nom.TALENTOS.join(',') === 'ALEJA,SARA,SOFIA');
+for (const t of nom.TALENTOS) comprobar(`${t} se acepta`, nom.validarTalento(t).ok);
+comprobar('Se acepta el talento con lugar: SOFIA MEDELLIN', nom.validarTalento('SOFIA MEDELLIN').ok);
+comprobar('Se acepta SOFIA PUTUMAYO', nom.validarTalento('SOFIA PUTUMAYO').ok);
+comprobar('El talento vacio se acepta: es opcional', nom.validarTalento('').ok);
+comprobar('Un talento que no esta en la lista se rechaza', !nom.validarTalento('TATIANA').ok);
+comprobar('El rechazo dice cuales son validos', nom.validarTalento('PEPE').motivo.includes('ALEJA'));
+
+/* --- Codificacion del archivo ----------------------------------------- */
+
+// Este archivo se corrompio una vez al reescribirlo con PowerShell: el rango
+// de diacriticos quedo roto y `normalizarCampo` dejo de quitar tildes en
+// silencio. Estas tres comprobaciones lo detectan al instante.
+comprobar('normalizarCampo quita tildes', nom.normalizarCampo('Túquerres') === 'TUQUERRES');
+comprobar('normalizarCampo quita la n con virgulilla', nom.normalizarCampo('Nariño') === 'NARINO');
+comprobar('normalizarCampo quita tildes en varias palabras', nom.normalizarCampo('Puerto Asís') === 'PUERTO ASIS');
+
+/* -------------------------------------------------------------------------- */
+
+seccion('20. Los interruptores de expansion se explican y se pueden cambiar');
 
 comprobar('Hay una ficha por interruptor', INTERRUPTORES_DE_EXPANSION.length >= 5);
 
