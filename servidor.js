@@ -547,8 +547,11 @@ async function apiInterpretar(req, res) {
   const r = interpretar(texto);
 
   if (!r.ok) {
+    // `ok: true` porque la peticion SI funciono: lo que fallo es entender el
+    // texto, y eso no es un error de la API. Devolverlo como error hacia que
+    // el navegador perdiera los motivos y enseñara un "Error 200" pelado.
     return responderJson(res, 200, {
-      ok: false,
+      ok: true,
       entendido: false,
       lectura: r.lectura,
       avisos: r.avisos,

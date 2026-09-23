@@ -195,14 +195,41 @@ async function pedir(ruta, opciones = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...opciones,
   });
-  const datos = await res.json();
+  let datos;
+  try {
+    datos = await res.json();
+  } catch {
+    datos = {};
+  }
+
   if (!res.ok || datos.ok === false) {
-    const error = new Error(datos.error || `Error ${res.status}`);
+    // "Error 500" no le sirve a nadie. Si el servidor no mando un motivo, al
+    // menos se dice qué salió mal en castellano.
+    const error = new Error(datos.error || mensajePorCodigo(res.status));
     // Se guardan titulo y detalle tecnico para que el modal los pueda usar.
-    error.datos = datos;
+    error.datos = { titulo: datos.titulo || tituloPorCodigo(res.status), ...datos, error: datos.error || mensajePorCodigo(res.status) };
     throw error;
   }
   return datos;
+}
+
+/** Qué significa cada código HTTP, dicho para una persona. */
+function mensajePorCodigo(codigo) {
+  const porCodigo = {
+    400: 'El servidor rechazó la petición, pero no dijo por qué. Revisa la consola donde corre npm run panel.',
+    403: 'El servidor no permite esa operación.',
+    404: 'Esa dirección no existe en el panel. Puede que el servidor esté desactualizado: párelo y vuelve a correr npm run panel.',
+    409: 'Algo cambió mientras trabajabas. Vuelve a empezar desde la etapa 1.',
+    500: 'El servidor falló por dentro. El detalle está en la consola donde corre npm run panel.',
+  };
+  return porCodigo[codigo] || `El servidor respondió ${codigo} y no dijo nada más.`;
+}
+
+function tituloPorCodigo(codigo) {
+  if (codigo === 404) return 'El panel no reconoce esa dirección';
+  if (codigo === 409) return 'Hay que volver a empezar';
+  if (codigo >= 500) return 'Falló el servidor';
+  return 'No se pudo continuar';
 }
 
 /** Fila de una lista de definiciones. */
@@ -464,7 +491,10 @@ async function interpretar(evento) {
 
   cargando(true);
   try {
-    const r = await pedir('/api/interpretar', { method: 'POST', body: JSON.stringify({ texto }) });
+    const r = await pedir('/api/interpretar', {
+      method: 'POST',
+      body: JSON.stringify({ texto, objetivo: estado.objetivo || undefined }),
+    });
     pintarLectura(r);
 
     if (r.entendido) {
@@ -477,6 +507,22 @@ async function interpretar(evento) {
   } finally {
     cargando(false);
   }
+}
+
+/** Qué escribir, cuando la frase no se entendió y no hay nada concreto que decir. */
+function ayudaDelDictado() {
+  return `
+    <p>Necesito dos cosas: <strong>la sede</strong> y <strong>los equipos</strong>.</p>
+    <div class="modal-formato">
+      <div><b>Así</b><code>campaña para neiva con infinixhot60pro</code></div>
+      <div><b>O así</b><code>campaña para la sede La 16 con iphone 15 y samsung a07</code></div>
+      <div class="ejemplo"><b>O así</b><code>campaña para neiva de android</code></div>
+    </div>
+    <p class="sutil">
+      Los equipos valen pegados (<code>infinixhot60pro</code>) o separados
+      (<code>infinix hot 60 pro</code>). Y si dices solo la familia —«de android», «de iphone»—
+      busco en la carpeta de esa sede y tomo lo que encuentre.
+    </p>`;
 }
 
 /** El reparto en conjuntos, se pueda crear o no. Responde «¿y este a dónde va?». */
@@ -499,20 +545,40 @@ function pintarLectura(r) {
   mostrar('#lectura', true);
 
   if (!r.entendido) {
-    caja.className = 'alerta alerta-roja';
+    const problemas = r.problemas || [];
+    const ambiguo = r.lectura?.ambiguo || [];
+
+    caja.className = 'alerta alerta-amarilla';
     caja.innerHTML =
-      '<strong>No pude armar la campaña</strong>' +
+      '<strong>Me falta algo para armar la campaña</strong>' +
       ((r.lectura?.productos || []).length
         ? `<p>Equipos que sí reconocí: ${r.lectura.productos.map((p) => `<code>${esc(p)}</code>`).join(' · ')}</p>`
         : '') +
       repartoPrevisto(r.lectura) +
-      '<ul>' +
-      (r.problemas || []).map((p) => `<li>${esc(p).replace(/\n/g, '<br />')}</li>`).join('') +
-      '</ul>' +
-      ((r.lectura?.ambiguo || []).length
-        ? `<p>Sedes posibles: ${r.lectura.ambiguo.map((s) => `<code>${esc(s)}</code>`).join(' · ')}</p>`
+      (problemas.length
+        ? `<ul>${problemas.map((p) => `<li>${esc(p).replace(/\n/g, '<br />')}</li>`).join('')}</ul>`
+        : '<p>No conseguí entender la frase.</p>') +
+      // Cuando la sede es ambigua, los botones resuelven el problema de un
+      // clic en vez de obligar a reescribir la frase entera.
+      (ambiguo.length
+        ? `<p>¿Cuál de estas?</p><div class="acciones">${ambiguo
+            .map((s) => `<button class="btn" data-sede="${esc(s)}">${esc(s)}</button>`)
+            .join('')}</div>`
         : '') +
+      (problemas.length || ambiguo.length ? '' : ayudaDelDictado()) +
       ((r.avisos || []).length ? `<p class="sutil">${r.avisos.map(esc).join('<br />')}</p>` : '');
+
+    // Elegir la sede reescribe la frase y vuelve a interpretar.
+    $$('#lectura [data-sede]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const ciudad = r.lectura.ciudad || '';
+        const texto = $('#dictado').value;
+        $('#dictado').value = ciudad
+          ? texto.replace(new RegExp(`\\b${ciudad}\\b`, 'i'), `sede ${b.dataset.sede}`)
+          : `${texto} sede ${b.dataset.sede}`;
+        $('#dictado-form').requestSubmit();
+      }),
+    );
     return;
   }
 

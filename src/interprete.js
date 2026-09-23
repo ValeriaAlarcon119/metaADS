@@ -151,7 +151,20 @@ export function detectarSede(texto) {
     }
   }
 
-  return { sede: null, motivo: 'No reconoci ninguna sede en el texto.' };
+  // Sin sede no hay campana posible, asi que el mensaje tiene que decir
+  // exactamente que se puede escribir, no solo que falta algo.
+  const comoSeEscriben = [
+    'Pasto: "sede La 16", "sede Sebastian", "sede El Liceo"',
+    'Ipiales: "sede La Victoria", "sede Zafiro", "sede Markus"',
+    'Y las que son unicas en su ciudad: Tuquerres, Orito, La Hormiga, Puerto Asis, Mocoa, Medellin, Neiva',
+  ];
+
+  return {
+    sede: null,
+    motivo:
+      'No reconoci ninguna sede. Dime para cual es la campana:\n' +
+      comoSeEscriben.map((l) => `  ${l}`).join('\n'),
+  };
 }
 
 /* -------------------------------------------------------------------------- */
