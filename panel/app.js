@@ -30,9 +30,10 @@ const estado = {
 };
 
 const EJEMPLOS = [
-  'campaña para la sede La 16 con el iPhone 16',
+  'ayúdame a crear una campaña para neiva de android',
+  'campaña de prueba para neiva con tecnocamon50pro e infinixhot60pro a crédito con 35 mil diarios',
+  'campaña para la sede La 16 con el iphone15',
   'campaña para la victoria con android redmi 15, samsung a07 y samsung a17, y otra de iphone 15, iphone 13 y iphone 14',
-  'campaña de prueba para neiva con tecno camon 50 pro e infinix hot 60 pro a crédito con 35 mil diarios',
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -197,6 +198,21 @@ async function interpretar(evento) {
   }
 }
 
+/** El reparto en conjuntos, se pueda crear o no. Responde «¿y este a dónde va?». */
+function repartoPrevisto(lectura) {
+  if (!lectura?.agrupacionPrevista?.length) return '';
+  return (
+    '<p><strong>Reparto en conjuntos:</strong></p><ul>' +
+    lectura.agrupacionPrevista
+      .map(
+        (g, i) =>
+          `<li><code>CJTO${i + 1} · ${esc(g.segmento)}</code> — ${g.equipos.map(esc).join(', ')}</li>`,
+      )
+      .join('') +
+    '</ul>'
+  );
+}
+
 function pintarLectura(r) {
   const caja = $('#lectura');
   mostrar('#lectura', true);
@@ -204,15 +220,18 @@ function pintarLectura(r) {
   if (!r.entendido) {
     caja.className = 'alerta alerta-roja';
     caja.innerHTML =
-      '<strong>No pude armar la campaña</strong><ul>' +
+      '<strong>No pude armar la campaña</strong>' +
+      ((r.lectura?.productos || []).length
+        ? `<p>Equipos que sí reconocí: ${r.lectura.productos.map((p) => `<code>${esc(p)}</code>`).join(' · ')}</p>`
+        : '') +
+      repartoPrevisto(r.lectura) +
+      '<ul>' +
       (r.problemas || []).map((p) => `<li>${esc(p).replace(/\n/g, '<br />')}</li>`).join('') +
       '</ul>' +
       ((r.lectura?.ambiguo || []).length
         ? `<p>Sedes posibles: ${r.lectura.ambiguo.map((s) => `<code>${esc(s)}</code>`).join(' · ')}</p>`
         : '') +
-      ((r.avisos || []).length
-        ? `<p class="sutil">${r.avisos.map(esc).join('<br />')}</p>`
-        : '');
+      ((r.avisos || []).length ? `<p class="sutil">${r.avisos.map(esc).join('<br />')}</p>` : '');
     return;
   }
 
@@ -222,7 +241,8 @@ function pintarLectura(r) {
     '<strong>Esto entendí</strong>' +
     `<p>Sede <code>${esc(l.sede)}</code> — ${esc(l.sedeNombre)} (la reconocí por «${esc(l.alias)}»)<br />` +
     `Equipos: ${l.productos.map((p) => `<code>${esc(p)}</code>`).join(' · ')}<br />` +
-    `${l.conjuntos.length} conjunto(s), $${Number(l.presupuesto).toLocaleString('es-CO')} COP/día cada uno</p>` +
+    `$${Number(l.presupuesto).toLocaleString('es-CO')} COP/día por conjunto</p>` +
+    repartoPrevisto(l) +
     ((r.avisos || []).length ? `<ul>${r.avisos.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : '') +
     ((r.problemas || []).length
       ? `<ul class="mal">${r.problemas.map((p) => `<li>${esc(p).replace(/\n/g, '<br />')}</li>`).join('')}</ul>`

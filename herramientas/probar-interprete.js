@@ -37,8 +37,22 @@ function mostrar(texto) {
 
   const r = interpretar(texto);
 
+  // El reparto previsto se enseña SIEMPRE, salga o no la campana: responde
+  // "¿y este equipo a que conjunto va?" aunque falte el creativo.
+  const previsto = (lectura) => {
+    if (!lectura?.agrupacionPrevista?.length) return;
+    console.log(`  ${C.dim}reparto previsto:${C.reset}`);
+    lectura.agrupacionPrevista.forEach((g, i) => {
+      console.log(`    ${C.cyan}CJTO${i + 1} · ${g.segmento}${C.reset}  ${g.equipos.join(', ')}`);
+    });
+  };
+
   if (!r.ok) {
     console.log(`  ${C.rojo}No se pudo armar la campana:${C.reset}`);
+    if (r.lectura?.productos?.length) {
+      console.log(`  ${C.dim}equipos reconocidos:${C.reset} ${r.lectura.productos.join(', ')}`);
+    }
+    previsto(r.lectura);
     r.problemas.forEach((p) => p.split('\n').forEach((l) => console.log(`  ${C.rojo}  ${l}${C.reset}`)));
     r.avisos.forEach((a) => console.log(`  ${C.amarillo}  aviso: ${a}${C.reset}`));
     return;
@@ -51,8 +65,9 @@ function mostrar(texto) {
       ` ${C.dim}· presupuesto:${C.reset} $${l.presupuesto.toLocaleString('es-CO')}/dia ${C.dim}· sufijo:${C.reset} ${l.sufijo}`,
   );
   console.log(`  ${C.dim}equipos reconocidos:${C.reset} ${l.productos.join(', ')}`);
+  previsto(l);
 
-  console.log(`  ${C.bold}${r.cfg.conjuntos.length} conjunto(s):${C.reset}`);
+  console.log(`  ${C.bold}${r.cfg.conjuntos.length} conjunto(s) que SI se pueden crear:${C.reset}`);
   r.cfg.conjuntos.forEach((c, i) => {
     console.log(`    ${C.verde}CJTO${i + 1} · ${c.segmento}${c.sufijoConjunto ? ` | ${c.sufijoConjunto}` : ''}${C.reset}` +
       ` ${C.dim}· $${c.presupuestoDiarioCop.toLocaleString('es-CO')}/dia · ${c.anuncios.length} anuncio(s)${C.reset}`);

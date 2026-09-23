@@ -214,11 +214,61 @@ const CORTES = new Set([
   'busque', 'busca', 'muestre', 'muestra', 'por', 'favor', 'todo', 'automaticamente', 'automatico',
 ]);
 
+/** Marcas ordenadas de mas larga a mas corta, para que "motorola" gane a "moto". */
+const MARCAS_POR_LARGO = [...MARCAS].sort((a, b) => b.clave.length - a.clave.length);
+
+/**
+ * Parte un modelo escrito pegado en sus trozos legibles.
+ *
+ *   'hot60pro'   -> ['hot', '60', 'pro']
+ *   'a07'        -> ['a07']     (una letra sola se queda pegada a su numero)
+ *   's25ultra'   -> ['s25', 'ultra']
+ *   '15'         -> ['15']
+ */
+function partirModeloPegado(resto) {
+  const trozos = resto.match(/[a-z]+|\d+/g) || [];
+  const salida = [];
+
+  for (let i = 0; i < trozos.length; i += 1) {
+    const esLetraSuelta = /^[a-z]$/.test(trozos[i]);
+    const siguienteEsNumero = /^\d+$/.test(trozos[i + 1] || '');
+
+    if (esLetraSuelta && siguienteEsNumero) {
+      salida.push(trozos[i] + trozos[i + 1]);
+      i += 1;
+    } else {
+      salida.push(trozos[i]);
+    }
+  }
+
+  return salida;
+}
+
+/**
+ * Si la palabra es una marca con el modelo pegado, la separa.
+ * "infinixhot60pro" -> marca Infinix, modelo ['hot','60','pro']
+ *
+ * Hace falta porque asi es como se escribe de verdad: nadie teclea
+ * "infinix hot 60 pro" cuando el archivo se llama "infinixhot60pro".
+ */
+function marcaPegada(palabra) {
+  for (const marca of MARCAS_POR_LARGO) {
+    const clave = marca.clave.replace(/\s/g, '');
+    if (palabra.length <= clave.length || !palabra.startsWith(clave)) continue;
+
+    const modelo = partirModeloPegado(palabra.slice(clave.length));
+    if (modelo.length > 0 && modelo.some((p) => /\d/.test(p))) {
+      return { marca, modelo };
+    }
+  }
+  return null;
+}
+
 /**
  * Saca los productos del texto, en orden de aparicion.
  *
- * Un producto es una marca conocida seguida de hasta tres palabras que parezcan
- * parte del modelo (numeros o palabras cortas como "pro", "plus", "ultra").
+ * Un producto es una marca conocida —suelta o pegada al modelo— seguida del
+ * modelo, que tiene que llevar al menos un numero.
  *
  * @returns {{referencia:string, producto:string, familia:string, posicion:number}[]}
  */
@@ -227,7 +277,14 @@ export function detectarProductos(texto) {
   const productos = [];
 
   for (let i = 0; i < palabras.length; i += 1) {
-    // Las marcas de dos palabras ("apple watch") se prueban primero.
+    // Primero, la marca escrita pegada al modelo: "infinixhot60pro".
+    const pegada = marcaPegada(palabras[i]);
+    if (pegada) {
+      productos.push(armarProducto(pegada.marca, pegada.modelo, i));
+      continue;
+    }
+
+    // Las marcas de dos palabras ("apple watch") se prueban antes que las de una.
     const dos = `${palabras[i]} ${palabras[i + 1] || ''}`.trim();
     const marca = MARCAS.find((m) => m.clave === dos) || MARCAS.find((m) => m.clave === palabras[i]);
     if (!marca) continue;
@@ -259,14 +316,7 @@ export function detectarProductos(texto) {
     // ("samsung galaxy" a secas). Se exige al menos un token con digito.
     if (modelo.length === 0 || !modelo.some((p) => /\d/.test(p))) continue;
 
-    const referencia = normalizarCampo(`${marca.etiqueta} ${modelo.join(' ')}`);
-    productos.push({
-      referencia,
-      producto: `${marca.etiqueta} ${modelo.map(capitalizarModelo).join(' ')}`,
-      familia: marca.familia,
-      posicion: i,
-    });
-
+    productos.push(armarProducto(marca, modelo, i));
     i = j - 1;
   }
 
@@ -277,6 +327,16 @@ export function detectarProductos(texto) {
     vistos.add(p.referencia);
     return true;
   });
+}
+
+/** Arma la ficha de un producto a partir de su marca y su modelo. */
+function armarProducto(marca, modelo, posicion) {
+  return {
+    referencia: normalizarCampo(`${marca.etiqueta} ${modelo.join(' ')}`),
+    producto: `${marca.etiqueta} ${modelo.map(capitalizarModelo).join(' ')}`,
+    familia: marca.familia,
+    posicion,
+  };
 }
 
 /** "a07" -> "A07", "pro" -> "Pro", "16" -> "16". */
@@ -378,6 +438,52 @@ function agruparPorFamilia(texto, productos) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Barrido de la carpeta: "todos los android que haya"                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Deduce que equipos hay en la carpeta de una sede leyendo los nombres de los
+ * archivos. Es lo que permite pedir "una campana para Neiva de Android" sin
+ * escribir ningun modelo.
+ *
+ * Solo reconoce lo que puede leer. Un archivo mal nombrado —o con la marca mal
+ * escrita, como "inifixhot60pro"— no se adivina: se devuelve aparte en
+ * `noIdentificados` para que la persona lo vea y lo renombre o lo pida a mano.
+ *
+ * @param {string} sede      codigo del manual
+ * @param {string} [familia] 'IPH', 'AND', 'MAC'. Sin ella, todo lo que haya.
+ * @returns {{productos:object[], noIdentificados:string[], piezas:number}}
+ */
+export function productosDeLaCarpeta(sede, familia = '') {
+  const piezas = listarCreativosDeSede(sede).filter((p) => p.tipo && !p.problema);
+
+  const encontrados = new Map();
+  const noIdentificados = [];
+
+  for (const pieza of piezas) {
+    // Se quita la extension y el sufijo de sede para no confundir al lector.
+    const base = pieza.nombre.replace(/\.[a-z0-9]+$/i, '');
+    const leidos = detectarProductos(base);
+
+    if (leidos.length === 0) {
+      noIdentificados.push(pieza.nombre);
+      continue;
+    }
+
+    // Un archivo describe UN equipo: el primero que se reconozca.
+    const producto = leidos[0];
+    if (familia && producto.familia !== familia) continue;
+    if (!encontrados.has(producto.referencia)) encontrados.set(producto.referencia, producto);
+  }
+
+  return {
+    productos: [...encontrados.values()],
+    noIdentificados,
+    piezas: piezas.length,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Emparejado con los creativos de la carpeta                                */
 /* -------------------------------------------------------------------------- */
 
@@ -473,17 +579,65 @@ export function interpretar(texto, opciones = {}) {
   /* --- 2. Los productos -------------------------------------------------- */
 
   const productos = detectarProductos(crudo);
+
+  // "una campana para Neiva de Android": se nombro una familia pero ningun
+  // modelo de esa familia. Se barre la carpeta de la sede y se toma todo lo
+  // que haya de ella.
+  const familiasPedidas = new Set(
+    normalizar(crudo)
+      .split(' ')
+      .map((p) => PALABRAS_DE_FAMILIA[p])
+      .filter(Boolean),
+  );
+
+  for (const familia of familiasPedidas) {
+    if (productos.some((p) => p.familia === familia)) continue;
+
+    const barrido = productosDeLaCarpeta(ficha.codigo, familia);
+
+    if (barrido.productos.length === 0) {
+      problemas.push(
+        `Pediste ${familia === 'IPH' ? 'iPhone' : familia === 'MAC' ? 'Mac o iPad' : 'Android'} sin decir ` +
+          `modelos, y en creativos/${ficha.codigo.toLowerCase()}/ no encontre ninguna pieza de esa familia` +
+          `${barrido.piezas === 0 ? ' (la carpeta esta vacia)' : ` entre las ${barrido.piezas} que hay`}.`,
+      );
+      continue;
+    }
+
+    // La posicion importa para el agrupado: se les da la de la palabra de
+    // familia que las invoco, para que caigan en su grupo.
+    const posicion = normalizar(crudo)
+      .split(' ')
+      .findIndex((p) => PALABRAS_DE_FAMILIA[p] === familia);
+
+    productos.push(...barrido.productos.map((p) => ({ ...p, posicion, deLaCarpeta: true })));
+
+    avisos.push(
+      `No dijiste modelos, asi que busque en creativos/${ficha.codigo.toLowerCase()}/ y tome los ` +
+        `${barrido.productos.length} equipo(s) que reconoci: ${barrido.productos.map((p) => p.producto).join(', ')}.`,
+    );
+
+    if (barrido.noIdentificados.length > 0) {
+      avisos.push(
+        `En esa carpeta hay ${barrido.noIdentificados.length} archivo(s) cuyo equipo NO pude leer del ` +
+          `nombre y quedaron fuera: ${barrido.noIdentificados.join(', ')}. ` +
+          'Renombralos con marca y modelo (por ejemplo "infinixhot60pro-neiva.mp4") o pidelos por su nombre.',
+      );
+    }
+  }
+
   if (productos.length === 0) {
-    return {
-      ok: false,
-      cfg: null,
-      lectura: { sede: ficha.codigo },
-      avisos,
-      problemas: [
+    // Si se pidio una familia y el barrido no encontro nada, ese motivo ya
+    // esta en `problemas` y es mucho mas util que el mensaje generico.
+    if (problemas.length === 0) {
+      problemas.push(
         'No reconoci ningun equipo. Escribe marca y modelo: "iPhone 16", "Samsung A17", "Redmi 15".\n' +
+          `Tambien vale pegado ("infinixhot60pro") o por familia ("de android"), y entonces busco en la carpeta.\n` +
           `Marcas que conozco: ${MARCAS.map((m) => m.etiqueta).join(', ')}.`,
-      ],
-    };
+      );
+    }
+
+    return { ok: false, cfg: null, lectura: { sede: ficha.codigo }, avisos, problemas };
   }
 
   /* --- 3. Pago, presupuesto y sufijo ------------------------------------- */
@@ -507,6 +661,15 @@ export function interpretar(texto, opciones = {}) {
   const grupos = agruparPorFamilia(crudo, productos);
   const conjuntos = [];
   const sinPieza = [];
+
+  // El reparto que TOCARIA, con todos los equipos reconocidos y antes de mirar
+  // si hay pieza de cada uno. Se enseña siempre: responde "¿y este a que
+  // conjunto va?" aunque despues falte un creativo y el conjunto no se cree.
+  const agrupacionPrevista = grupos.map((g) => ({
+    familia: g.familia,
+    segmento: segmentoDe(g.familia, pago),
+    equipos: g.productos.map((p) => p.producto),
+  }));
 
   for (const grupo of grupos) {
     const segmento = segmentoDe(grupo.familia, pago);
@@ -585,7 +748,18 @@ export function interpretar(texto, opciones = {}) {
   }
 
   if (conjuntos.length === 0) {
-    return { ok: false, cfg: null, lectura: { sede: ficha.codigo, productos }, avisos, problemas };
+    return {
+      ok: false,
+      cfg: null,
+      lectura: {
+        sede: ficha.codigo,
+        productos: productos.map((p) => p.producto),
+        agrupacionPrevista,
+        sinPieza,
+      },
+      avisos,
+      problemas,
+    };
   }
 
   /* --- 5. La configuracion, igual que un archivo de campanas/ ------------ */
@@ -607,6 +781,7 @@ export function interpretar(texto, opciones = {}) {
       sedeNombre: `${ficha.sede} (${ficha.ciudad})`,
       alias: deteccion.alias,
       productos: productos.map((p) => p.producto),
+      agrupacionPrevista,
       pago,
       presupuesto,
       sufijo,

@@ -53,6 +53,7 @@ import {
   detectarProductos,
   detectarPresupuesto,
   segmentoDe,
+  productosDeLaCarpeta,
 } from '../src/interprete.js';
 import { generarCopys } from '../src/copys.js';
 import { cuentaDeSede } from '../src/config.js';
@@ -850,6 +851,23 @@ comprobar('Separa equipos unidos por "e"', detectarProductos('tecno camon 50 pro
 comprobar('Una marca sin modelo no es un producto', detectarProductos('campana de android samsung').length === 0);
 comprobar('No repite el mismo equipo dos veces', detectarProductos('iphone 15 y iphone 15').length === 1);
 
+// Asi es como se escribe de verdad: pegado, como el nombre del archivo.
+comprobar('Lee la marca pegada al modelo: "infinixhot60pro"', (() => {
+  const p = detectarProductos('campana para neiva para infinixhot60pro');
+  return p[0]?.referencia === 'INFINIX HOT 60 PRO' && p[0]?.familia === 'AND';
+})());
+comprobar('Lee "tecnocamon50pro"', detectarProductos('con tecnocamon50pro')[0]?.referencia === 'TECNO CAMON 50 PRO');
+comprobar('Lee "iphone15" pegado', detectarProductos('de iphone15')[0]?.referencia === 'IPHONE 15');
+comprobar('Lee "samsunga07" sin partir el modelo', (() => {
+  const p = detectarProductos('con samsunga07');
+  return p[0]?.referencia === 'SAMSUNG A07';
+})());
+comprobar('"motorolaedge50" usa Motorola, no Moto', (() => {
+  const p = detectarProductos('con motorolaedge50');
+  return p[0]?.producto.startsWith('Motorola Edge');
+})());
+comprobar('Una marca pegada sin numero no cuenta como producto', detectarProductos('con samsunggalaxy').length === 0);
+
 comprobar('Lee "35 mil" como 35000', detectarPresupuesto('con 35 mil diarios') === 35000);
 comprobar('Lee "$35.000" como 35000', detectarPresupuesto('presupuesto de $35.000 al dia') === 35000);
 comprobar('Sin presupuesto devuelve null', detectarPresupuesto('campana para la 16 de iphone') === null);
@@ -889,6 +907,58 @@ comprobar('Separa iPhone y Android en conjuntos distintos', (() => {
   const productos = detectarProductos('android redmi 15 y samsung a07 y de iphone el iphone 15 y el iphone 13');
   const familias = new Set(productos.map((p) => p.familia));
   return familias.size === 2 && familias.has('AND') && familias.has('IPH');
+})());
+
+comprobar('Reparte tres equipos mezclados: dos Android y un iPhone', (() => {
+  const r = interpretar('campana para neiva con redmi 17, iphone 13 y infinixhot60pro');
+  const g = r.lectura.agrupacionPrevista;
+  const and = g.find((x) => x.segmento.startsWith('AND'));
+  const iph = g.find((x) => x.segmento.startsWith('IPH'));
+  return g.length === 2 && and.equipos.length === 2 && iph.equipos.length === 1;
+})());
+
+comprobar('El reparto se enseña aunque falten creativos', (() => {
+  const r = interpretar('campana para la victoria con redmi 15, samsung a07 y iphone 15');
+  // En Victoria no hay piezas, asi que no sale campana, pero SI el reparto.
+  return !r.ok && r.lectura.agrupacionPrevista.length === 2;
+})());
+
+/* --- Barrido de la carpeta: "de android" sin decir modelos -------------- */
+
+comprobar('Lee los equipos que hay en la carpeta de una sede', (() => {
+  const r = productosDeLaCarpeta('NEIVA');
+  return r.productos.some((p) => p.referencia === 'TECNO CAMON 50 PRO');
+})());
+
+comprobar('Filtra el barrido por familia', (() => {
+  const r = productosDeLaCarpeta('NEIVA', 'IPH');
+  return r.productos.length === 0;
+})());
+
+comprobar('Los archivos que no puede leer se reportan, no se ignoran', (() => {
+  // "inifixhot60pro-neiva.mp4" lleva la marca mal escrita a proposito.
+  const r = productosDeLaCarpeta('NEIVA');
+  return r.noIdentificados.includes('inifixhot60pro-neiva.mp4');
+})());
+
+comprobar('"campana para neiva de android" barre la carpeta sola', (() => {
+  const r = interpretar('ayudame a crear una campana para neiva de android');
+  return r.ok && r.cfg.conjuntos[0].anuncios.some((a) => a.referencia === 'TECNO CAMON 50 PRO');
+})());
+
+comprobar('El barrido avisa de los archivos que quedaron fuera', (() => {
+  const r = interpretar('campana para neiva de android');
+  return r.avisos.some((a) => a.includes('inifixhot60pro-neiva.mp4'));
+})());
+
+comprobar('Pedir una familia sin piezas lo dice claro', (() => {
+  const r = interpretar('campana para neiva de iphone');
+  return !r.ok && r.problemas.some((p) => p.includes('no encontre ninguna pieza'));
+})());
+
+comprobar('Nombrar modelos NO dispara el barrido de la carpeta', (() => {
+  const r = interpretar('campana para neiva con tecno camon 50 pro');
+  return r.ok && r.cfg.conjuntos[0].anuncios.length === 1;
 })());
 
 /* -------------------------------------------------------------------------- */

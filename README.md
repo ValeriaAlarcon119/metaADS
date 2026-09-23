@@ -23,15 +23,27 @@ npm run panel        # y abrir http://127.0.0.1:4317
 Arriba hay un campo de texto. Se escribe como se le diría a alguien:
 
 ```
-campaña para la sede La 16 con el iPhone 16
-campaña para la victoria con android redmi 15, samsung a07 y samsung a17,
-  y otra de iphone 15, iphone 13 y iphone 14
-campaña de prueba para neiva con tecno camon 50 pro a crédito con 35 mil diarios
+ayúdame a crear una campaña para neiva de android
+campaña para la sede La 16 con el iphone15
+campaña para la victoria con redmi 15, samsung a07 y iphone 13
+campaña de prueba para neiva con tecnocamon50pro a crédito con 35 mil diarios
 ```
 
 De ahí sale la campaña entera: sede, conjuntos, anuncios, creativos y textos.
-Lo que hay que decir es **la sede** y **los equipos con marca y modelo**. El
-resto se deduce:
+
+**Los equipos se pueden escribir de tres formas**, y las tres funcionan:
+
+| Cómo lo escribes | Qué hace |
+|---|---|
+| `infinix hot 60 pro` | Separado, como se lee |
+| `infinixhot60pro` | Pegado, como se llama el archivo |
+| `de android` / `de iphone` | **Sin decir modelos**: va a `creativos/<sede>/` y toma todos los que reconozca del nombre del archivo |
+
+El barrido de carpeta solo reconoce lo que puede leer. Un archivo mal nombrado
+—`inifixhot60pro-neiva.mp4`, con la marca mal escrita— **no se adivina**: sale
+en un aviso aparte diciendo que quedó fuera y cómo renombrarlo.
+
+Lo demás se deduce:
 
 | Se deduce | De dónde |
 |---|---|
