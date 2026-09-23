@@ -1296,6 +1296,27 @@ comprobar('El rechazo dice cuales son validos', nom.validarTalento('PEPE').motiv
 // Este archivo se corrompio una vez al reescribirlo con PowerShell: el rango
 // de diacriticos quedo roto y `normalizarCampo` dejo de quitar tildes en
 // silencio. Estas tres comprobaciones lo detectan al instante.
+// El detector de tildes de auditarNombre llevaba tiempo roto sin que nadie lo
+// notara: una reescritura del archivo corrompio su rango de caracteres y dejo
+// de detectar la Ñ y las mayusculas acentuadas.
+for (const malo of ['C1 | NEIVÁ | 230926', 'C1 | NIÑOS | 230926', 'C1 | TÚQUERRES | 230926']) {
+  comprobar(`"${malo}" se rechaza por llevar tilde o ñ`, (() => {
+    const r = nom.auditarNombre(malo, 'campana');
+    return !r.ok && r.problemas.some((p) => p.includes('tildes'));
+  })());
+}
+comprobar('Un nombre sin tildes no dispara ese aviso', (() => {
+  const r = nom.auditarNombre('C4 | NEIVA | 230926', 'campana');
+  return r.ok && !r.problemas.some((p) => p.includes('tildes'));
+})());
+
+// Los MENSAJES si van en castellano correcto: son para leerlos, no para Meta.
+comprobar('Los mensajes de ayuda estan bien escritos', (() => {
+  const textos = Object.values(nom.NIVELES).flatMap((n) => [n.que, n.formato, n.ayuda]);
+  const juntos = textos.join(' ');
+  return juntos.includes('campaña') && juntos.includes('número') && !/\bcampana\b/.test(juntos);
+})());
+
 comprobar('normalizarCampo quita tildes', nom.normalizarCampo('Túquerres') === 'TUQUERRES');
 comprobar('normalizarCampo quita la n con virgulilla', nom.normalizarCampo('Nariño') === 'NARINO');
 comprobar('normalizarCampo quita tildes en varias palabras', nom.normalizarCampo('Puerto Asís') === 'PUERTO ASIS');

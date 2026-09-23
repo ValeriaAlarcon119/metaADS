@@ -203,10 +203,21 @@ function convertir(valor, regla, donde, errores) {
 /** Compara dos valores para decidir si hubo cambio real. */
 const mismo = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-/** Version corta y legible de un valor, para la lista de cambios. */
+/**
+ * Version corta y legible de un valor, para la lista de cambios.
+ *
+ * "(sin fijar)" confundia: parecia que faltara algo. Lo que significa es que
+ * el archivo de la campana no decia nada de ese campo, asi que estaba usando
+ * el valor por defecto del sistema. Se dice con esas palabras. Y los booleanos
+ * salen como "Si"/"No", no como true/false.
+ */
 function mostrar(valor) {
-  if (valor === undefined || valor === null || valor === '') return '(sin fijar)';
-  if (Array.isArray(valor)) return valor.length <= 2 ? valor.join(' · ') : `${valor.length} elementos`;
+  if (valor === undefined || valor === null || valor === '') return 'el valor por defecto';
+  if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
+  if (Array.isArray(valor)) {
+    if (valor.length === 0) return 'ninguno';
+    return valor.length <= 3 ? valor.join(' · ') : `${valor.length} elementos`;
+  }
   return String(valor);
 }
 
@@ -266,21 +277,41 @@ export function aplicarAjustes(campana, ajustes = {}) {
   };
 
   /* --- Etapa 1: la campana ---------------------------------------------- */
+  // El panel solo manda el nombre cuando de verdad lo cambiaron, y manda
+  // tambien el que habia, para que la lista diga "esto -> esto".
   const nombrePedido = String(ajustes.campana?.nombre ?? '').trim();
   if (nombrePedido) {
     cfg.nombreCampanaManual = nombrePedido;
-    anotar('campana', 'nombre', '(el que calcula el sistema)', nombrePedido);
+    anotar('campaña', 'nombre', ajustes.campana?.nombreAnterior || 'el nombre automático', nombrePedido);
+  }
+
+  /* El objetivo tambien se cambia desde la etapa 1, y con el el prefijo. */
+  const objetivoPedido = String(ajustes.campana?.objetivo ?? '').trim();
+  if (objetivoPedido && objetivoPedido !== cfg.objetivo) {
+    anotar('campaña', 'objetivo', cfg.objetivo, objetivoPedido);
+    cfg.objetivo = objetivoPedido;
+  }
+
+  for (const [clave, etiqueta] of [
+    ['region', 'región'],
+    ['tipoRegional', 'tipo de campaña regional'],
+  ]) {
+    const v = String(ajustes.campana?.[clave] ?? '').trim();
+    if (v && v !== cfg[clave]) {
+      anotar('campaña', etiqueta, cfg[clave], v);
+      cfg[clave] = v;
+    }
   }
 
   if (ajustes.campana?.compartirPresupuesto !== undefined) {
     const valor = convertir(
       ajustes.campana.compartirPresupuesto,
       { tipo: 'booleano', etiqueta: 'reparto de presupuesto entre conjuntos' },
-      'campana → ',
+      'campaña → ',
       errores,
     );
     if (valor !== undefined) {
-      anotar('campana', 'reparto de presupuesto entre conjuntos', Boolean(cfg.compartirPresupuesto), valor);
+      anotar('campaña', 'reparto de presupuesto entre conjuntos', Boolean(cfg.compartirPresupuesto), valor);
       cfg.compartirPresupuesto = valor;
     }
   }
@@ -300,7 +331,9 @@ export function aplicarAjustes(campana, ajustes = {}) {
     if (!edicion || typeof edicion !== 'object') return;
 
     const destino = cfg.conjuntos[indice];
-    const etapa = cfg.conjuntos.length === 1 ? 'conjunto' : `conjunto ${indice + 1}`;
+    // El nombre real del conjunto dice mucho mas que "conjunto 2": lo manda el
+    // panel, que ya lo tiene en pantalla.
+    const etapa = edicion.nombreActual || (cfg.conjuntos.length === 1 ? 'conjunto' : `conjunto ${indice + 1}`);
     const donde = `${etapa} → `;
 
     for (const [clave, regla] of Object.entries({ ...CAMPOS_CONJUNTO, ...CAMPOS_NOMBRE_CONJUNTO })) {

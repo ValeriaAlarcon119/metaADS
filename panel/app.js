@@ -830,14 +830,75 @@ function pintarEtapa1() {
         )}
         ${fila('Consecutivo', esc(consecutivo))}
         ${fila('Sede', `${esc(p.sede.codigo)} · ${esc(p.sede.nombre)} (${esc(p.sede.ciudad)})`, `Distintivo ${p.sede.dist}, va en el conjunto y en los anuncios`)}
-        ${fila('Cuenta publicitaria', `${esc(p.cuenta.etiqueta)} · <span class="mono">${esc(p.cuenta.id)}</span>`, `${p.cuenta.nombre} — elegida por ${p.cuenta.origen}`)}
-        ${fila('Página de Facebook', `<span class="mono">${esc(p.cuenta.paginaId || '—')}</span>`)}
+        ${fila(
+          'Cuenta publicitaria',
+          `<strong>${esc(p.cuenta.nombre || p.cuenta.etiqueta)}</strong>` +
+            `<span class="nota mono">${esc(p.cuenta.etiqueta)} · ${esc(p.cuenta.id)}</span>`,
+          `Elegida por ${p.cuenta.origen}`,
+        )}
+        ${fila(
+          'Página de Facebook',
+          p.cuenta.paginaNombre
+            ? `<strong>${esc(p.cuenta.paginaNombre)}</strong>` +
+              `<span class="nota mono">${esc(p.cuenta.paginaId)}</span>`
+            : `<span class="mono">${esc(p.cuenta.paginaId || '—')}</span>` +
+              (p.cuenta.paginaError
+                ? `<span class="nota mal">No se pudo leer su nombre: ${esc(p.cuenta.paginaError)}</span>`
+                : ''),
+          'Es la que publica el anuncio',
+        )}
         ${fila('Presupuesto en la campaña', '<span class="ok">NINGUNO (ABO)</span>', 'El presupuesto vive en el conjunto, punto 9 del manual')}
       </dl>
     </div>`;
 
-  $('#c1-form').elements.nombre.value = c.nombre;
-  $('#c1-form').elements.compartirPresupuesto.checked = Boolean(p.expansion.repartoDePresupuesto.encendido);
+  rellenarFormularioEtapa1();
+}
+
+/** El formulario de la etapa 1: objetivo, región, nombre y reparto. */
+function rellenarFormularioEtapa1() {
+  const p = estado.plan;
+  const f = $('#c1-form');
+
+  f.elements.nombre.value = p.campana.nombre;
+  f.elements.compartirPresupuesto.checked = Boolean(p.expansion.repartoDePresupuesto.encendido);
+
+  // El objetivo se cambia aquí mismo, agrupado como en Ads Manager.
+  f.elements.objetivo.innerHTML = estado.catalogo
+    .filter((g) => g.disponible)
+    .map(
+      (g) =>
+        `<optgroup label="${esc(g.etiqueta)}">` +
+        g.opciones
+          .map(
+            (o) =>
+              `<option value="${esc(o.codigo)}"${o.codigo === p.objetivo.codigo ? ' selected' : ''}>` +
+              `${esc(o.etiqueta)} — ${esc(o.prefijo)}#${o.ensayado ? '' : '  (sin ensayar)'}</option>`,
+          )
+          .join('') +
+        '</optgroup>',
+    )
+    .join('');
+
+  // Región y tipo solo cuando el objetivo elegido es regional.
+  const regional = p.objetivo.ambito === 'regional';
+  mostrar('#c1-regional', regional);
+
+  if (regional) {
+    const opciones = (lista, actual, texto = (v) => v) =>
+      lista
+        .map((v) => {
+          const codigo = typeof v === 'string' ? v : v.codigo;
+          return `<option value="${esc(codigo)}"${codigo === actual ? ' selected' : ''}>${esc(texto(v))}</option>`;
+        })
+        .join('');
+
+    f.elements.region.innerHTML = opciones(estado.regiones, p.objetivo.region);
+    f.elements.tipoRegional.innerHTML = opciones(
+      estado.tiposRegionales,
+      p.objetivo.tipoRegional,
+      (v) => `${v.codigo} — ${v.que}`,
+    );
+  }
 }
 
 /* ------------------------------- etapa 2 ---------------------------------- */
@@ -909,7 +970,9 @@ function pintarEtapa2() {
               <div><span class="sutil">Si se enciende:</span> ${esc(r.siSeEnciende)}</div>
               <div><span class="sutil">Por qué está apagado:</span> ${esc(r.porQueApagado)}</div>
               <div class="sutil">Es de la campaña, no del conjunto: se cambia en la <strong>etapa 1</strong>.</div>
-              <div class="tecnico"><code>is_adset_budget_sharing_enabled = ${r.encendido}</code></div>
+              <div class="tecnico">
+                <code>is_adset_budget_sharing_enabled</code> — ${r.encendido ? 'sí se comparte' : 'no se comparte'}
+              </div>
             </div>
           </li>
         </ul>
@@ -1390,12 +1453,23 @@ function pintarEtapa4() {
       </dl>
     </div>`;
 
-  const bloqueo =
-    estado.plan.sinConexion || !estado.puedePublicar
-      ? estado.motivoBloqueo ||
-        'Este plan se calculó sin consultar Meta: los consecutivos son supuestos y crear con ellos pisaría ' +
-          'números que ya existen. Pon las credenciales en el .env y recarga.'
-      : '';
+  const bloqueo = (() => {
+    if (p.sinAcceso) {
+      return (
+        `El token no tiene acceso a la cuenta ${p.cuenta.etiqueta} (${p.cuenta.id}). ` +
+        'En Business Manager → Usuarios del sistema → Agregar activos, hay que asignarle esa cuenta ' +
+        'publicitaria con permiso de «Administrar campañas», y la Página con permiso para crear anuncios.'
+      );
+    }
+    if (p.sinConexion || !estado.puedePublicar) {
+      return (
+        estado.motivoBloqueo ||
+        'Este plan se calculó sin consultar Meta: los consecutivos son supuestos y crear con ellos ' +
+          'pisaría números que ya existen. Pon las credenciales en el .env y recarga.'
+      );
+    }
+    return '';
+  })();
 
   $('#c4-bloqueo').innerHTML = bloqueo ? `<strong>No se puede enviar.</strong> ${esc(bloqueo)}` : '';
   mostrar('#c4-bloqueo', Boolean(bloqueo));
@@ -1445,8 +1519,18 @@ function invalidarDesde(n) {
 async function guardarEtapa1(evento) {
   evento.preventDefault();
   const f = $('#c1-form');
+  const p = estado.plan;
+
   const nombre = f.elements.nombre.value.trim();
   const compartir = f.elements.compartirPresupuesto.checked;
+  const objetivo = f.elements.objetivo.value;
+
+  // Al cambiar de objetivo el nombre automático cambia con él (C# ↔ R#), así
+  // que si no lo han tocado a mano se deja recalcular.
+  if (objetivo !== p.objetivo.codigo) estado.objetivo = objetivo;
+
+  if (f.elements.region) estado.region = f.elements.region.value;
+  if (f.elements.tipoRegional) estado.tipoRegional = f.elements.tipoRegional.value;
 
   if (compartir) {
     const sigue = await preguntar({
@@ -1464,7 +1548,13 @@ async function guardarEtapa1(evento) {
   }
 
   estado.ajustes.campana = { compartirPresupuesto: compartir };
-  if (nombre) estado.ajustes.campana.nombre = nombre;
+
+  // Solo se manda el nombre si de verdad lo cambiaron: si no, el sistema lo
+  // recalcula, que es lo que hace falta al cambiar de objetivo.
+  if (nombre && nombre !== p.campana.nombre) {
+    estado.ajustes.campana.nombre = nombre;
+    estado.ajustes.campana.nombreAnterior = p.campana.nombre;
+  }
 
   invalidarDesde(1);
   if (await planificar()) irA(1);
@@ -1545,6 +1635,11 @@ async function guardarEtapa2(evento) {
     });
     if (!sigue) return;
   }
+
+  // El nombre real de cada conjunto, para que la lista de cambios lo use.
+  conjuntos.forEach((c, i) => {
+    c.nombreActual = estado.plan.conjuntos[i]?.nombre || '';
+  });
 
   estado.ajustes.conjuntos = fusionarConjuntos(conjuntos);
   invalidarDesde(2);

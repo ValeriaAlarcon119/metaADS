@@ -439,15 +439,13 @@ code {
   color: var(--acento-txt);
 }
 
+/* El hover NO puede aclarar el fondo hasta perder el texto: se OSCURECE, que
+   mantiene el contraste con la letra blanca. Fue un fallo real. */
 .btn-primario:hover:not(:disabled) {
-  background: var(--marca-fuerte);
-  border-color: var(--marca-fuerte);
+  background: color-mix(in srgb, var(--acento) 86%, #000);
+  border-color: color-mix(in srgb, var(--acento) 86%, #000);
+  color: var(--acento-txt);
   box-shadow: var(--anillo);
-}
-
-[data-tema="oscuro"] .btn-primario:hover:not(:disabled) {
-  background: var(--marca);
-  border-color: var(--marca);
 }
 
 .btn-aprobar,
@@ -459,8 +457,23 @@ code {
 
 .btn-aprobar:hover:not(:disabled),
 .btn-enviar:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: color-mix(in srgb, var(--exito) 84%, #000);
+  border-color: color-mix(in srgb, var(--exito) 84%, #000);
+  color: #fff;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--exito) 25%, transparent);
+}
+
+/* En modo oscuro los fondos son oscuros de salida, asi que ahi el hover
+   aclara un poco en vez de oscurecer. El texto sigue siendo el mismo. */
+[data-tema="oscuro"] .btn-primario:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--acento) 88%, #fff);
+  border-color: color-mix(in srgb, var(--acento) 88%, #fff);
+}
+
+[data-tema="oscuro"] .btn-aprobar:hover:not(:disabled),
+[data-tema="oscuro"] .btn-enviar:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--exito) 88%, #fff);
+  border-color: color-mix(in srgb, var(--exito) 88%, #fff);
 }
 
 .btn-enviar {

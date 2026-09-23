@@ -138,9 +138,30 @@
         <div id="c1-vista"></div>
 
         <form id="c1-form" class="editor oculto">
-          <h3>Editar el nombre de la campaña</h3>
+          <h3>Editar la campaña</h3>
+
           <label>
-            Nombre
+            Objetivo
+            <select name="objetivo"></select>
+            <span class="pista-campo">
+              Cambiarlo cambia el prefijo del nombre (<code>C#</code> o <code>R#</code>) y los campos
+              que se le mandan a Meta.
+            </span>
+          </label>
+
+          <div id="c1-regional" class="rejilla oculto">
+            <label>
+              Región
+              <select name="region"></select>
+            </label>
+            <label>
+              Tipo de campaña regional
+              <select name="tipoRegional"></select>
+            </label>
+          </div>
+
+          <label>
+            Nombre de la campaña
             <input type="text" name="nombre" autocomplete="off" />
           </label>
           <p class="pista">

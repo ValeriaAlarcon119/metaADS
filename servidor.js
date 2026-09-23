@@ -186,6 +186,53 @@ const borradores = new Map();
  * Carga la campana —de campanas/ o de un borrador dictado—, aplica los ajustes
  * del panel y planifica. No crea nada: `planificarEstructura` es solo lectura.
  */
+/** Datos de la Pagina para la vista. Se rellena al planificar. */
+let _paginaVista = { id: PAGE_ID, nombre: '', error: '' };
+
+/**
+ * Errores de Meta que significan "no tienes acceso", no "esta mal escrito".
+ * Con estos no tiene sentido cortar: se planifica sin conexion y se explica.
+ */
+function esFaltaDeAcceso(error) {
+  const m = String(error?.message || '');
+  return (
+    /\(#200\)/.test(m) ||
+    /\(#10\)/.test(m) ||
+    /has NOT grant/i.test(m) ||
+    /permission/i.test(m) ||
+    /Unsupported get request/i.test(m)
+  );
+}
+
+/**
+ * Planifica contra Meta y, si el token no alcanza la cuenta o la Pagina, lo
+ * vuelve a intentar sin conexion.
+ *
+ * Es el punto 34 del encargo: cuando Meta no esta disponible, la interfaz
+ * sigue sirviendo para revisar la campana entera — lo que no hace es fingir
+ * que se podria crear.
+ */
+async function planificarConRespaldo(cfg) {
+  try {
+    return await planificarEstructura(cfg);
+  } catch (error) {
+    if (cfg.sinConexion || !esFaltaDeAcceso(error)) throw error;
+
+    const plan = await planificarEstructura({ ...cfg, sinConexion: true });
+
+    plan.avisos.unshift(
+      'MODO REVISIÓN: el token no tiene acceso a esta cuenta publicitaria, así que no se pudo ' +
+        'consultar nada en Meta. Todo lo que ves está calculado en local y el consecutivo C# es una ' +
+        'suposición. No se puede crear nada hasta arreglar el acceso.',
+      `Lo que dijo Meta: ${String(error.message).replace(/\s*refer to https?:\/\/\S+.*$/i, '')}`,
+    );
+
+    plan.sinAcceso = true;
+    plan.motivoSinAcceso = String(error.message);
+    return plan;
+  }
+}
+
 async function prepararPlan({
   campana: nombreCampana,
   borrador,
@@ -208,7 +255,7 @@ async function prepararPlan({
 
   const { cfg, cambios, rechazados } = aplicarAjustes(base, ajustes);
 
-  const plan = await planificarEstructura({
+  const plan = await planificarConRespaldo({
     ...cfg,
     objetivo: objetivo || cfg.objetivo,
     region: region || cfg.region || '',
@@ -233,6 +280,9 @@ async function prepararPlan({
     );
   }
 
+  // El nombre de la Pagina para enseñarlo junto al numero.
+  _paginaVista = sinMeta ? { id: PAGE_ID, nombre: '', error: '' } : await nombreDeLaPagina();
+
   const firma = firmarPlan(plan);
   planes.set(firma, { plan, cfg, cambios, creadoEn: Date.now(), sinMeta: Boolean(sinMeta) });
 
@@ -251,6 +301,9 @@ function vistaDelPlan(plan, { firma, cambios }) {
     firma,
     cambios,
     sinConexion: Boolean(plan.sinConexion),
+    // El token existe y es valido, pero no alcanza esta cuenta o la Pagina.
+    sinAcceso: Boolean(plan.sinAcceso),
+    motivoSinAcceso: plan.motivoSinAcceso || '',
     avisos: plan.avisos,
     estado: plan.estado,
 
@@ -261,7 +314,10 @@ function vistaDelPlan(plan, { firma, cambios }) {
       origen: plan.cuenta.origen,
       moneda: plan.cuenta.currency,
       husoHorario: plan.cuenta.timezone_name || '',
-      paginaId: PAGE_ID,
+      // Nombre Y numero: el numero solo no identifica nada a simple vista.
+      paginaId: _paginaVista.id,
+      paginaNombre: _paginaVista.nombre,
+      paginaError: _paginaVista.error,
     },
 
     /** El objetivo elegido, con lo que hace falta para explicarlo. */
@@ -498,6 +554,34 @@ async function revisarToken() {
 
   _tokenRevisado = { cuando: Date.now(), resultado };
   return resultado;
+}
+
+/**
+ * El nombre de la Pagina, no solo su numero.
+ *
+ * "140694115785963" no le dice nada a nadie; "Celred" si. Se cachea porque no
+ * cambia y no hace falta preguntarlo en cada pantalla.
+ */
+let _pagina = { id: '', nombre: '', error: '' };
+
+async function nombreDeLaPagina() {
+  if (!PAGE_ID) return { id: '', nombre: '', error: 'falta META_PAGE_ID en el .env' };
+  if (_pagina.id === PAGE_ID) return _pagina;
+
+  try {
+    const r = await fetch(
+      `${GRAPH_BASE}/${PAGE_ID}?fields=name&access_token=${encodeURIComponent(ACCESS_TOKEN)}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    const d = await r.json();
+    _pagina = d?.error
+      ? { id: PAGE_ID, nombre: '', error: d.error.message }
+      : { id: PAGE_ID, nombre: d.name || '', error: '' };
+  } catch (error) {
+    _pagina = { id: PAGE_ID, nombre: '', error: error.message };
+  }
+
+  return _pagina;
 }
 
 async function apiEstado(res) {

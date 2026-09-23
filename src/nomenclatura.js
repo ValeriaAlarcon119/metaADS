@@ -515,13 +515,22 @@ export function auditarNombre(nombre, nivel) {
   if (n !== n.trim()) problemas.push('Tiene espacios sobrantes al principio o al final.');
   if (/\s{2,}/.test(n)) problemas.push('Tiene dos espacios seguidos. El separador es " | ", con un espacio a cada lado.');
   if (TIENE_CARACTER_PROHIBIDO.test(n)) {
-    problemas.push('Lleva alguno de estos caracteres, que el manual prohibe: /  \\  #  %  &  "  \'');
+    problemas.push('Lleva alguno de estos caracteres, que el manual prohíbe: /  \\  #  %  &  "  \'');
   }
-  if (/[ì-ſ]/.test(n)) problemas.push('Lleva tildes o ñ. Escribelo sin ellas: NARINO, TUQUERRES, SEBASTIAN.');
-  if (n !== n.toUpperCase()) problemas.push('Hay minusculas. El nombre va entero en MAYUSCULA.');
-  if (/-\s*COPIA/i.test(n)) problemas.push('Todavia dice "- Copia". Eso lo pone Meta al duplicar; hay que quitarlo.');
+  // Latin-1 suplementario + latin extendido-A, escrito con escapes. Antes
+  // estaba con los caracteres literales y una reescritura del archivo lo
+  // corrompio a "[ì-ſ]", que deja fuera la Ñ y las mayusculas
+  // acentuadas — el detector llevaba tiempo sin detectar nada.
+  if (/[À-ſ]/.test(n)) {
+    problemas.push(
+      'Lleva tildes o ñ. Los NOMBRES van sin ellas porque lo pide el manual (punto 2): ' +
+        'NARINO, TUQUERRES, SEBASTIAN. En los textos del anuncio sí se escriben con tilde.',
+    );
+  }
+  if (n !== n.toUpperCase()) problemas.push('Hay minúsculas. El nombre va entero en MAYÚSCULA.');
+  if (/-\s*COPIA/i.test(n)) problemas.push('Todavía dice "- Copia". Eso lo pone Meta al duplicar; hay que quitarlo.');
   if (/NUEVO (ANUNCIO|CONJUNTO|CAMPANA)/i.test(n)) {
-    problemas.push('Todavia tiene el nombre por defecto de Meta ("Nuevo anuncio", "Nuevo conjunto").');
+    problemas.push('Todavía tiene el nombre por defecto de Meta ("Nuevo anuncio", "Nuevo conjunto").');
   }
 
   // El formato se explica con un ejemplo y, cuando se puede, diciendo QUE
@@ -637,40 +646,40 @@ function diagnosticarCampos(nombre, nivel) {
  */
 export const NIVELES = Object.freeze({
   campana: {
-    que: 'campana',
-    formato: 'C<numero> | SEDE | DDMMAA',
+    que: 'campaña',
+    formato: 'C<número> | SEDE | DDMMAA',
     ejemplo: 'C4 | NEIVA | 230926',
     ayuda:
-      'Tres campos separados por " | ": el consecutivo pegado a la C, el codigo de la sede y la fecha ' +
-      'de seis digitos sin barras. Sedes validas: ' + Object.keys(SEDES).join(', ') + '.',
+      'Tres campos separados por " | ": el consecutivo pegado a la C, el código de la sede y la fecha ' +
+      'de seis dígitos sin barras. Sedes válidas: ' + CODIGOS_SEDE_ACTIVA.join(', ') + '.',
   },
   conjunto: {
     que: 'conjunto de anuncios',
-    formato: 'C<numero> | DIST | CJTO<numero> | SEGMENTO [| TEST u OPT]',
+    formato: 'C<número> | DIST | CJTO<número> | SEGMENTO [| TEST u OPT]',
     ejemplo: 'C4 | NEI | CJTO1 | AND-CRED | TEST',
     ayuda:
-      'El mismo C# de la campana, el distintivo de tres letras de la sede, CJTO con su numero y el ' +
+      'El mismo C# de la campaña, el distintivo de tres letras de la sede, CJTO con su número y el ' +
       'segmento. El sufijo TEST u OPT es opcional.',
   },
   anuncio: {
     que: 'anuncio',
-    formato: 'ADS<numero> | DIST | IMG o VID | REFERENCIA [| TALENTO] [| L1 o L2]',
+    formato: 'ADS<número> | DIST | IMG o VID | REFERENCIA [| TALENTO] [| L1 o L2]',
     ejemplo: 'ADS1 | NEI | IMG | TECNO CAMON 50 PRO',
     ayuda:
-      'ADS con su numero, el distintivo de la sede, el formato (IMG para imagen, VID para video) y la ' +
-      'referencia del equipo como esta en inventario.',
+      'ADS con su número, el distintivo de la sede, el formato (IMG para imagen, VID para video) y la ' +
+      'referencia del equipo como está en inventario.',
   },
   campanaRegional: {
-    que: 'campana regional',
-    formato: 'CR<numero> | REGION | TIPO | DDMMAA',
-    ejemplo: 'CR2 | PASTO | ORGANICO | 230926',
-    ayuda: 'Para campanas de reconocimiento, no de venta de sede (punto 10).',
+    que: 'campaña regional',
+    formato: 'R<número> | REGIÓN | TIPO | DDMMAA',
+    ejemplo: 'R7 | NARINO | GEO | 230926',
+    ayuda: 'Para campañas de reconocimiento o tráfico, no de venta de sede (punto 10).',
   },
   conjuntoRegional: {
     que: 'conjunto regional',
-    formato: 'CR<numero> | CJTO<numero> | SEGMENTACION',
-    ejemplo: 'CR2 | CJTO1 | GEO',
-    ayuda: 'Para campanas de reconocimiento (punto 10).',
+    formato: 'R<número> | CJTO<número> | SEGMENTACIÓN',
+    ejemplo: 'R7 | CJTO1 | GEO-5KM',
+    ayuda: 'Para campañas de reconocimiento o tráfico (punto 10).',
   },
 });
 
