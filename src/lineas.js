@@ -9,12 +9,21 @@
  *  externas (solo node:zlib), asi que no hay que instalar ninguna libreria de
  *  Excel ni exponerse a su cadena de suministro.
  *
- *  La hoja trae dos tablas, una al lado de la otra:
- *    A:E  LINEA MOVIL | TIENDA | LIDER | Columna1 | Columna2   (todas las lineas)
- *    G:J  LINEA MOVIL | TIENDA | LIDER | Columna1              (la linea LUCID)
+ *  COMO SE LOCALIZA LA TABLA
  *
- *  El lector detecta ambas por su encabezado, no por posicion fija, para que
- *  siga funcionando si alguien mueve o agrega una columna.
+ *  Nada esta atado a una columna fija. El ancla es el encabezado TIENDA, que
+ *  es el unico dato sin el cual no se puede hacer nada: un telefono sin saber
+ *  de que tienda es no sirve.
+ *
+ *  La columna de los telefonos se elige MIRANDO LOS DATOS, no el titulo: es
+ *  aquella cuyas celdas parecen moviles colombianos. El encabezado "LINEA
+ *  MOVIL" solo se usa como pista, y si apunta a una columna donde no hay
+ *  telefonos se avisa y se usa la que si los tiene.
+ *
+ *  Eso no es capricho. Al borrar unas tablas del archivo el titulo "LINEA
+ *  MOVIL" se quedo en la columna A mientras los numeros seguian en la G, y un
+ *  lector que confiara en el titulo habria leido "1, 2, 3..." como telefonos.
+ *  Los datos mandan sobre las etiquetas.
  * ============================================================================
  */
 
@@ -230,14 +239,70 @@ const ENCABEZADO_TIENDA = 'TIENDA';
 const ENCABEZADO_LIDER = 'LIDER';
 
 /**
- * Lee lineas.xlsx y devuelve todas las lineas encontradas.
+ * Localiza las tablas de la hoja usando TIENDA como ancla.
+ *
+ * Se devuelve la columna de TIENDA, la de LIDER si la hay, la que el archivo
+ * DICE que es la de los telefonos (que puede estar equivocada) y las columnas
+ * de notas que la acompanan.
+ */
+function localizarTablas(filas) {
+  const tablas = [];
+
+  for (const [numeroFila, celdas] of filas) {
+    const columnas = Object.entries(celdas);
+    const buscar = (etiqueta) =>
+      columnas.find(([, valor]) => normalizarCampo(valor) === etiqueta)?.[0] || null;
+
+    const colTienda = buscar(ENCABEZADO_TIENDA);
+    if (!colTienda) continue;
+
+    const colLider = buscar(ENCABEZADO_LIDER);
+    const colLineaDeclarada = buscar(ENCABEZADO_LINEA);
+
+    // Las notas (LUCID y similares) van pegadas a la derecha de la tienda.
+    const colNotas = columnas
+      .map(([columna]) => columna)
+      .filter((c) => c !== colTienda && c !== colLider && c !== colLineaDeclarada)
+      .filter((c) => {
+        const distancia = indiceColumna(c) - indiceColumna(colTienda);
+        return distancia > 0 && distancia <= 4;
+      });
+
+    tablas.push({ filaEncabezado: numeroFila, colTienda, colLider, colLineaDeclarada, colNotas });
+  }
+
+  return tablas;
+}
+
+/**
+ * Cuenta, por columna, cuantas celdas de la tabla parecen un movil colombiano.
+ * Es lo que decide donde estan de verdad los telefonos.
+ */
+function columnasQueParecenTelefonos(filas, tabla, numerosDeFila) {
+  const puntaje = new Map();
+
+  for (const numeroFila of numerosDeFila) {
+    if (numeroFila <= tabla.filaEncabezado) continue;
+    const celdas = filas.get(numeroFila);
+    // Solo cuentan las filas que de verdad son de la tabla: las que tienen
+    // tienda. Asi una columna suelta de otro sitio no gana por acumulacion.
+    if (!celdas[tabla.colTienda]) continue;
+
+    for (const [columna, valor] of Object.entries(celdas)) {
+      if (normalizarTelefono(valor)) puntaje.set(columna, (puntaje.get(columna) || 0) + 1);
+    }
+  }
+
+  return puntaje;
+}
+
+/**
+ * Lee lineas.xlsx y devuelve las lineas junto con lo que hubo que deducir.
  *
  * @param {string} rutaArchivo
- * @returns {{linea:string, telefono:string, tienda:string, sede:string|null,
- *            lider:string, notas:string[], esLucid:boolean, fila:number,
- *            tabla:string}[]}
+ * @returns {{registros:object[], avisos:string[]}}
  */
-export function leerLineas(rutaArchivo) {
+export function leerLineasConDiagnostico(rutaArchivo) {
   let buffer;
   try {
     buffer = readFileSync(rutaArchivo);
@@ -255,52 +320,68 @@ export function leerLineas(rutaArchivo) {
 
   const filas = leerHoja(archivos.get(claveHoja).toString('utf8'), cadenas);
 
-  /* --- Localizar las tablas por su encabezado, no por posicion fija ------- */
-  const tablas = [];
-  for (const [numeroFila, celdas] of filas) {
-    for (const [columna, valor] of Object.entries(celdas)) {
-      if (normalizarCampo(valor) !== ENCABEZADO_LINEA) continue;
-
-      const base = indiceColumna(columna);
-      let colTienda = null;
-      let colLider = null;
-      const colNotas = [];
-
-      // Las columnas de la tabla van pegadas a la derecha del encabezado.
-      for (const [otraCol, otroValor] of Object.entries(celdas)) {
-        const distancia = indiceColumna(otraCol) - base;
-        if (distancia <= 0 || distancia > 5) continue;
-        const etiqueta = normalizarCampo(otroValor);
-        if (etiqueta === ENCABEZADO_TIENDA) colTienda = otraCol;
-        else if (etiqueta === ENCABEZADO_LIDER) colLider = otraCol;
-        else colNotas.push(otraCol);
-      }
-
-      if (colTienda) {
-        tablas.push({ filaEncabezado: numeroFila, colLinea: columna, colTienda, colLider, colNotas });
-      }
-    }
-  }
+  /* --- Localizar las tablas ---------------------------------------------- */
+  const tablas = localizarTablas(filas);
 
   if (tablas.length === 0) {
     throw new Error(
-      `lineas: en "${rutaArchivo}" no se encontro ninguna tabla con encabezados ` +
-        `"${ENCABEZADO_LINEA}" y "${ENCABEZADO_TIENDA}".`,
+      `lineas: en "${rutaArchivo}" no se encontro ninguna tabla con el encabezado ` +
+        `"${ENCABEZADO_TIENDA}".\n` +
+        '  Esa columna es la que dice de que tienda es cada numero, y sin ella el archivo\n' +
+        '  no se puede usar. Comprueba que la fila de titulos siga ahi.',
     );
   }
 
   /* --- Leer las filas de cada tabla -------------------------------------- */
   const registros = [];
+  const avisos = [];
   const numerosDeFila = [...filas.keys()].sort((a, b) => a - b);
 
   for (const tabla of tablas) {
-    const etiquetaTabla = `${tabla.colLinea}:${tabla.colTienda}`;
+    /* --- Donde estan de verdad los telefonos ----------------------------- */
+    const puntaje = columnasQueParecenTelefonos(filas, tabla, numerosDeFila);
+    const declarada = tabla.colLineaDeclarada;
+
+    let colLinea;
+    if (declarada && puntaje.get(declarada) > 0) {
+      colLinea = declarada;
+    } else {
+      // La mejor por numero de telefonos validos; a igualdad, la de mas a la
+      // izquierda, para que el resultado no dependa del orden del XML.
+      const mejor = [...puntaje.entries()].sort(
+        (a, b) => b[1] - a[1] || indiceColumna(a[0]) - indiceColumna(b[0]),
+      )[0];
+      colLinea = mejor?.[0] || null;
+
+      if (colLinea && declarada) {
+        avisos.push(
+          `El titulo "${ENCABEZADO_LINEA}" esta en la columna ${declarada}, pero ahi no hay ningun ` +
+            `movil colombiano. Los numeros se leyeron de la columna ${colLinea}, que tiene ` +
+            `${puntaje.get(colLinea)}. Mueve el titulo a ${colLinea}1 para dejarlo derecho.`,
+        );
+      } else if (colLinea) {
+        avisos.push(
+          `No hay ningun titulo "${ENCABEZADO_LINEA}" en la fila ${tabla.filaEncabezado}. ` +
+            `Los numeros se leyeron de la columna ${colLinea}, que es la unica con moviles colombianos.`,
+        );
+      }
+    }
+
+    if (!colLinea) {
+      avisos.push(
+        `La tabla que empieza en la fila ${tabla.filaEncabezado} (tienda en la columna ` +
+          `${tabla.colTienda}) no tiene ninguna columna con moviles colombianos. Se ignora.`,
+      );
+      continue;
+    }
+
+    const etiquetaTabla = `${colLinea}:${tabla.colTienda}`;
 
     for (const numeroFila of numerosDeFila) {
       if (numeroFila <= tabla.filaEncabezado) continue;
       const celdas = filas.get(numeroFila);
 
-      const bruto = celdas[tabla.colLinea];
+      const bruto = celdas[colLinea];
       const tienda = celdas[tabla.colTienda];
       if (!bruto || !tienda) continue;
 
@@ -323,7 +404,29 @@ export function leerLineas(rutaArchivo) {
     }
   }
 
-  return registros;
+  // Una tienda que no se reconoce no es un detalle: esa sede se queda sin
+  // numero y la campana no se puede armar.
+  const sinSede = [...new Set(registros.filter((r) => !r.sede).map((r) => r.tienda))];
+  if (sinSede.length > 0) {
+    avisos.push(
+      `Estas tiendas del Excel no corresponden a ninguna sede del manual: ${sinSede.join(', ')}. ` +
+        'Sus lineas no se van a usar.',
+    );
+  }
+
+  return { registros, avisos };
+}
+
+/**
+ * Las lineas del archivo, sin el diagnostico.
+ *
+ * @param {string} rutaArchivo
+ * @returns {{linea:string, telefono:string, tienda:string, sede:string|null,
+ *            lider:string, notas:string[], esLucid:boolean, fila:number,
+ *            tabla:string}[]}
+ */
+export function leerLineas(rutaArchivo) {
+  return leerLineasConDiagnostico(rutaArchivo).registros;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -360,7 +463,12 @@ export function lineaDeSede(rutaArchivo, sede, opciones = {}) {
     return { telefono: forzado, registro: null, alternativas: [], origen: 'forzado', avisos, todasDeLaSede: [] };
   }
 
-  const todas = leerLineas(rutaArchivo);
+  // Los avisos del lector (columna deducida, tiendas sin reconocer) suben
+  // hasta el panel: si el archivo esta torcido hay que verlo antes de crear,
+  // no despues.
+  const { registros: todas, avisos: avisosDelArchivo } = leerLineasConDiagnostico(rutaArchivo);
+  avisos.push(...avisosDelArchivo);
+
   const deLaSede = todas.filter((r) => r.sede === ficha.codigo);
 
   if (deLaSede.length === 0) {
@@ -412,4 +520,11 @@ export function lineaDeSede(rutaArchivo, sede, opciones = {}) {
   };
 }
 
-export default { leerLineas, lineaDeSede, normalizarTelefono, codigoDeTienda, INDICATIVO_COLOMBIA };
+export default {
+  leerLineas,
+  leerLineasConDiagnostico,
+  lineaDeSede,
+  normalizarTelefono,
+  codigoDeTienda,
+  INDICATIVO_COLOMBIA,
+};

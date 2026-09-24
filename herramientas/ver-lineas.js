@@ -15,7 +15,7 @@
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { leerLineas, lineaDeSede } from '../src/lineas.js';
+import { leerLineasConDiagnostico, lineaDeSede } from '../src/lineas.js';
 import { CODIGOS_SEDE, obtenerSedeNomenclatura } from '../src/nomenclatura.js';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,13 +38,25 @@ function main() {
   console.log(`${C.dim}Archivo: ${RUTA}${C.reset}\n`);
 
   let todas;
+  let avisosDelArchivo = [];
   try {
-    todas = leerLineas(RUTA);
+    const lectura = leerLineasConDiagnostico(RUTA);
+    todas = lectura.registros;
+    avisosDelArchivo = lectura.avisos;
   } catch (error) {
     console.error(`${C.rojo}  ${error.message}${C.reset}\n`);
     process.exit(1);
   }
 
+  // Los avisos del archivo son los MISMOS para las trece sedes, asi que van
+  // una vez arriba y no repetidos trece veces debajo de cada fila.
+  if (avisosDelArchivo.length > 0) {
+    console.log(`${C.amarillo}${C.bold}  SOBRE EL ARCHIVO${C.reset}`);
+    for (const aviso of avisosDelArchivo) console.log(`${C.amarillo}   ! ${aviso}${C.reset}`);
+    console.log('');
+  }
+
+  const esDelArchivo = new Set(avisosDelArchivo);
   const sedes = pedida ? [pedida] : CODIGOS_SEDE;
 
   if (pedida && !CODIGOS_SEDE.includes(pedida)) {
@@ -74,7 +86,10 @@ function main() {
           `${C.dim}${otras}${C.reset}`,
       );
 
-      for (const aviso of r.avisos) console.log(`${C.amarillo}            ! ${aviso}${C.reset}`);
+      // Solo lo que es propio de esta sede; lo del archivo ya salio arriba.
+      for (const aviso of r.avisos) {
+        if (!esDelArchivo.has(aviso)) console.log(`${C.amarillo}            ! ${aviso}${C.reset}`);
+      }
     } catch (error) {
       console.log(`${C.bold}${codigo.padEnd(11)}${C.reset}${C.rojo}${error.message.split('\n')[0]}${C.reset}`);
     }

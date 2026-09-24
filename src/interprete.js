@@ -715,7 +715,12 @@ export function interpretar(texto, opciones = {}) {
           formato: tipo,
           referencia: producto.referencia,
           producto: producto.producto,
-          rutaCreativoLocal: pieza.nombre,
+          // La ruta ABSOLUTA, no el nombre suelto. El builder resuelve esto
+          // contra el directorio de trabajo, asi que "foto.png" lo buscaba en
+          // la raiz del proyecto y no en creativos/<sede>/. Las campanas de
+          // archivo no se enteraban porque validarCampana ya las resolvia;
+          // las dictadas desde el panel se rompian aqui.
+          rutaCreativoLocal: pieza.ruta,
           creativoRelativo: pieza.rutaRelativa,
           megas: pieza.megas,
           // Como se encontro la pieza. Importa: si emparejo "solo el modelo",

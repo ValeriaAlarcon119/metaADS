@@ -47,7 +47,6 @@
       <div class="marca">
         <!-- El logotipo real: CEL naranja, RED rojo. -->
         <span class="logotipo">CEL<em>RED</em></span>
-        <span class="sutil">Gestor de pauta · nomenclatura v1.2</span>
       </div>
       <div class="barra-derecha">
         <span id="sello-borrador" class="sello sello-verde">TODO EN BORRADOR (PAUSED)</span>
@@ -149,26 +148,31 @@
             </span>
           </label>
 
-          <div id="c1-regional" class="rejilla oculto">
-            <label>
-              Región
-              <select name="region"></select>
-            </label>
-            <label>
-              Tipo de campaña regional
-              <select name="tipoRegional"></select>
-            </label>
-          </div>
+          <!-- Solo para objetivos R#. Una regional no se pauta sobre una sede
+               suelta sino sobre una región, así que hay que ver qué tiendas
+               entran antes de aprobarla. -->
+          <fieldset id="c1-regional" class="oculto">
+            <legend>Alcance de la campaña regional</legend>
+            <div class="rejilla">
+              <label>
+                Región
+                <select name="region"></select>
+              </label>
+              <label>
+                Tipo de campaña regional
+                <select name="tipoRegional"></select>
+              </label>
+            </div>
+            <p class="pista" id="c1-region-sedes"></p>
+          </fieldset>
 
           <label>
             Nombre de la campaña
             <input type="text" name="nombre" autocomplete="off" />
           </label>
-          <p class="pista">
-            Patrón del manual: <code>C# | SEDE | DDMMAA</code>. Si no cumple, el sistema lo rechaza y
-            no se crea nada. El <code>C#</code> que pongas aquí se usa también en el nombre del
-            conjunto.
-          </p>
+          <!-- El patrón depende del objetivo (C# de sede o R# regional), así
+               que lo escribe app.js al rellenar el formulario. -->
+          <p class="pista" id="c1-patron"></p>
 
           <fieldset>
             <legend>Presupuesto de la campaña</legend>

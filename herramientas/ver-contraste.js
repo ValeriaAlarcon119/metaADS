@@ -27,6 +27,11 @@ const claro = { ...base, ...tokensDe('[data-tema="claro"] {') };
 const oscuroReal = { ...base, ...tokensDe('[data-tema="oscuro"] {\n  color-scheme: dark;') };
 Object.assign(oscuro, oscuroReal);
 
+// Los rellenos de boton (verde de aprobar, ambar y rojo) llevan letra blanca
+// fija en los dos modos, asi que hace falta un "blanco" que comparar.
+oscuro.blanco = '#ffffff';
+claro.blanco = '#ffffff';
+
 function resolver(mapa, valor, profundidad = 0) {
   if (profundidad > 5) return null;
   const v = String(valor).trim();
@@ -73,7 +78,16 @@ const PARES = [
   ['txt', 'hundido', 4.5, 'codigo sobre fondo hundido'],
   ['txt-2', 'hundido', 4.5, 'texto de codigo sobre hundido'],
   ['acento-txt', 'acento', 4.5, 'texto del boton primario'],
+  ['blanco', 'exito-solido', 4.5, 'texto del boton de aprobar'],
+  ['blanco', 'aviso-solido', 4.5, 'check de la casilla de aviso'],
+  ['blanco', 'error-solido', 4.5, 'check de la casilla en mal estado'],
   ['borde-medio', 'sup-1', 1.8, 'borde de input sobre tarjeta'],
+  // El color de la alerta ya no es el fondo: es la barra de 3px de la
+  // izquierda, y para un limite grafico la WCAG pide 3:1.
+  ['exito', 'sup-1', 3, 'barra verde de la alerta sobre tarjeta'],
+  ['aviso', 'sup-1', 3, 'barra ambar de la alerta sobre tarjeta'],
+  ['error', 'sup-1', 3, 'barra roja de la alerta sobre tarjeta'],
+  ['info', 'sup-1', 3, 'barra azul de la alerta sobre tarjeta'],
 ];
 
 let fallos = 0;

@@ -4,6 +4,7 @@
  *  herramientas/validar-en-meta.js — Ensayo real contra Meta SIN crear nada
  * ============================================================================
  *  Ejecutar:  npm run validar <campana>
+ *             npm run validar -- --texto "campana para mocoa de android"
  *
  *  Manda a Meta exactamente los mismos parametros con los que se crearia la
  *  campana, pero con `execution_options=['validate_only']`. Meta los revisa
@@ -25,6 +26,7 @@ import axios from 'axios';
 
 import { planificarEstructura, paramsDeCampana, paramsDeConjunto } from '../src/builder.js';
 import { cargarCampana, listarCampanas } from '../src/campanas.js';
+import { interpretar } from '../src/interprete.js';
 import { ACCESS_TOKEN, GRAPH_BASE, credencialesFaltantes, formatearMoneda } from '../src/config.js';
 
 const C = {
@@ -98,14 +100,36 @@ if (faltan.length > 0) {
   process.exit(1);
 }
 
-const nombre = process.argv.slice(2).find((a) => !a.startsWith('-')) || listarCampanas()[0];
-
 console.log(
   `\n${C.cyan}${C.bold}CELRED ADS MANAGER${C.reset} ` +
     `${C.dim}· ensayo con validate_only — NO se crea nada${C.reset}\n`,
 );
 
-const campana = await cargarCampana(nombre);
+/* --- De donde sale la campana: un archivo o una frase --------------------- */
+
+// El panel no guarda archivos en campanas/: interpreta lo que se le dicta. Con
+// --texto se ensaya exactamente eso, sin tener que crear un archivo antes.
+const argumentos = process.argv.slice(2);
+const iTexto = argumentos.indexOf('--texto');
+const texto = iTexto >= 0 ? argumentos[iTexto + 1] : '';
+
+let campana;
+
+if (texto) {
+  const lectura = interpretar(texto);
+  if (!lectura.ok) {
+    console.error(`${C.rojo}  No se entendio "${texto}":${C.reset}`);
+    for (const p of lectura.problemas || []) console.error(`${C.rojo}   • ${p}${C.reset}`);
+    console.error('');
+    process.exit(1);
+  }
+  for (const aviso of lectura.avisos || []) console.log(`${C.amarillo}  ! ${aviso}${C.reset}`);
+  campana = { ...lectura.cfg, archivo: `(dictada) ${texto}` };
+} else {
+  const nombre = argumentos.find((a) => !a.startsWith('-')) || listarCampanas()[0];
+  campana = await cargarCampana(nombre);
+}
+
 console.log(`${C.dim}Campana:${C.reset} ${C.bold}${campana.archivo}${C.reset}`);
 console.log(`${C.dim}Leyendo consecutivos reales en Ads Manager...${C.reset}\n`);
 
@@ -114,12 +138,20 @@ const plan = await planificarEstructura({ ...campana, estado: 'PAUSED' });
 console.log(`${C.bold}LO QUE SE VA A ENSAYAR${C.reset}`);
 console.log(`  cuenta      ${plan.cuenta.etiqueta} · ${plan.cuenta.id} (${plan.cuenta.name})`);
 console.log(`  campana     ${plan.campana.nombre}`);
-console.log(`  conjunto    ${plan.conjunto.nombre}`);
-console.log(
-  `  presupuesto ${formatearMoneda(plan.presupuesto.unidadMenor, plan.presupuesto.moneda, plan.presupuesto.factor)}`,
-);
-console.log(`  whatsapp    +${plan.whatsapp.telefono}`);
-console.log(`  anuncios    ${plan.anuncios.map((a) => a.nombre).join('\n              ')}\n`);
+console.log(`  objetivo    ${plan.objetivo.etiqueta} · ${plan.meta.objective}`);
+console.log(`  whatsapp    ${plan.whatsapp.telefono ? `+${plan.whatsapp.telefono}` : '(no aplica)'}`);
+
+// Una campana puede llevar varios conjuntos (iPhone por un lado, Android por
+// otro). Cada uno se ensaya aparte: el presupuesto y el targeting son suyos.
+for (const conjunto of plan.conjuntos) {
+  const pr = conjunto.presupuesto;
+  console.log(
+    `\n  conjunto ${conjunto.indice + 1}  ${conjunto.nombre}\n` +
+      `              ${formatearMoneda(pr.unidadMenor, pr.moneda, pr.factor)} al dia\n` +
+      `              ${conjunto.anuncios.map((a) => a.nombre).join('\n              ')}`,
+  );
+}
+console.log('');
 
 let todoOk = true;
 
@@ -135,7 +167,9 @@ todoOk = contar(
 
 /* --- 2. El conjunto ------------------------------------------------------- */
 
-console.log(`\n${C.bold}2. CONJUNTO DE ANUNCIOS${C.reset}`);
+console.log(
+  `\n${C.bold}2. ${plan.conjuntos.length === 1 ? 'CONJUNTO DE ANUNCIOS' : `LOS ${plan.conjuntos.length} CONJUNTOS`}${C.reset}`,
+);
 
 // El conjunto necesita colgar de una campana. Como no se creo ninguna, se
 // ensaya contra la ultima campana real de la cuenta: los campos que importan
@@ -161,34 +195,38 @@ if (!campanaDeApoyo) {
   console.log(`  ${C.amarillo}No hay ninguna campana en la cuenta contra la que validar el conjunto.${C.reset}`);
   console.log(`${C.dim}      Se ensayara al crear de verdad.${C.reset}`);
 } else {
-  const paramsAdSet = paramsDeConjunto(plan, campanaDeApoyo, 'PAUSED');
-  const conjuntoOk = contar(
-    await ensayar(`${plan.cuenta.id}/adsets`, paramsAdSet),
-    'Meta acepta el conjunto completo',
-  );
-  todoOk = conjuntoOk && todoOk;
-
-  // Solo si el conjunto fallo: se repite quitando el numero de WhatsApp. Si
-  // entonces pasa, el problema es el numero o el permiso sobre la Pagina.
-  if (!conjuntoOk) {
-    const sinNumero = { ...paramsAdSet, promoted_object: { page_id: paramsAdSet.promoted_object.page_id } };
-    const r = await ensayar(`${plan.cuenta.id}/adsets`, sinNumero);
-    console.log(
-      r.ok
-        ? `  ${C.amarillo}→ Sin el numero de WhatsApp SI pasa: el problema esta en el numero o en el permiso sobre la Pagina.${C.reset}`
-        : `  ${C.dim}→ Tampoco pasa sin el numero: el problema es otro campo.${C.reset}`,
+  for (const conjunto of plan.conjuntos) {
+    const paramsAdSet = paramsDeConjunto(plan, campanaDeApoyo, 'PAUSED', conjunto.indice);
+    const conjuntoOk = contar(
+      await ensayar(`${plan.cuenta.id}/adsets`, paramsAdSet),
+      `Meta acepta "${conjunto.nombre}"`,
     );
+    todoOk = conjuntoOk && todoOk;
+
+    // Solo si el conjunto fallo: se repite quitando el numero de WhatsApp. Si
+    // entonces pasa, el problema es el numero o el permiso sobre la Pagina.
+    if (!conjuntoOk && paramsAdSet.promoted_object?.whatsapp_phone_number) {
+      const sinNumero = { ...paramsAdSet, promoted_object: { page_id: paramsAdSet.promoted_object.page_id } };
+      const r = await ensayar(`${plan.cuenta.id}/adsets`, sinNumero);
+      console.log(
+        r.ok
+          ? `  ${C.amarillo}→ Sin el numero de WhatsApp SI pasa: el problema esta en el numero o en el permiso sobre la Pagina.${C.reset}`
+          : `  ${C.dim}→ Tampoco pasa sin el numero: el problema es otro campo.${C.reset}`,
+      );
+    }
   }
 }
 
 /* --- 3. Los creativos locales --------------------------------------------- */
 
 console.log(`\n${C.bold}3. ARCHIVOS LOCALES${C.reset}`);
-for (const anuncio of plan.anuncios) {
-  console.log(
-    `  ${OK} ${anuncio.archivo.nombre} · ${anuncio.archivo.tipo} · ${anuncio.archivo.megas} MB` +
-      `${anuncio.archivo.porPartes ? ' · sube por partes' : ''}`,
-  );
+for (const conjunto of plan.conjuntos) {
+  for (const anuncio of conjunto.anuncios) {
+    console.log(
+      `  ${OK} ${anuncio.archivo.nombre} · ${anuncio.archivo.tipo} · ${anuncio.archivo.megas} MB` +
+        `${anuncio.archivo.porPartes ? ' · sube por partes' : ''}`,
+    );
+  }
 }
 console.log(`${C.dim}      Los creativos no se pueden ensayar: validate_only no existe para`);
 console.log(`      /adcreatives y el creativo necesita el asset ya subido.${C.reset}`);

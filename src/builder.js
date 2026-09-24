@@ -39,7 +39,11 @@ import {
 // El ADS# no se consulta: el conjunto siempre es nuevo, asi que arranca en 1
 // (punto 6). `consecutivoAnuncioDeConjunto` queda en tracker.js para cuando
 // haya que agregar anuncios a un conjunto que ya existe.
-import { consecutivoCampanaDeSede, consecutivoConjuntoDeCampana } from './tracker.js';
+import {
+  consecutivoCampanaDeSede,
+  consecutivoCampanaDeRegion,
+  consecutivoConjuntoDeCampana,
+} from './tracker.js';
 
 import {
   obtenerSede as obtenerSedeTargeting,
@@ -304,6 +308,10 @@ export async function planificarEstructura(cfg) {
       }
     : await obtenerInfoCuenta(cuentaSede.id);
 
+  // C# y R# son DOS series distintas. Una campana de sede continua el C# de
+  // esa sede; una regional continua el R# de esa region. Antes las dos leian
+  // el contador de la sede, asi que la primera regional de Neiva salia con el
+  // numero siguiente al de sus campanas de WhatsApp.
   const consecutivoCampana = campanaExistenteId
     ? null
     : sinConexion
@@ -314,7 +322,9 @@ export async function planificarEstructura(cfg) {
           revisados: 0,
           avisos: [],
         }
-      : await consecutivoCampanaDeSede(cuentaAds, ficha.codigo);
+      : esRegional
+        ? await consecutivoCampanaDeRegion(cuentaAds, region)
+        : await consecutivoCampanaDeSede(cuentaAds, ficha.codigo);
   if (consecutivoCampana) avisos.push(...consecutivoCampana.avisos);
 
   const consecutivoConjunto = sinConexion
@@ -333,11 +343,16 @@ export async function planificarEstructura(cfg) {
     }
     const existente = await new Campaign(campanaExistenteId).read([Campaign.Fields.name, Campaign.Fields.id]);
     nombreDeCampana = existente._data?.name || existente.name;
-    numeroCampana = Number(/^C(\d{1,5})/i.exec(String(nombreDeCampana).trim())?.[1]);
+    // El prefijo sale del objetivo, no se da por hecho que sea C: una campana
+    // regional existente se llama R<numero>.
+    const prefijo = fichaObjetivo.prefijo;
+    numeroCampana = Number(
+      new RegExp(`^${prefijo}(\\d{1,5})`, 'i').exec(String(nombreDeCampana).trim())?.[1],
+    );
     if (!Number.isInteger(numeroCampana)) {
       throw new Error(
-        `builder: la campana existente se llama "${nombreDeCampana}" y no empieza por C<numero>, ` +
-          'asi que no se puede derivar el C# para el nombre del conjunto (punto 5).',
+        `builder: la campana existente se llama "${nombreDeCampana}" y no empieza por ${prefijo}<numero>, ` +
+          `asi que no se puede derivar el ${prefijo}# para el nombre del conjunto (punto 5).`,
       );
     }
   } else {

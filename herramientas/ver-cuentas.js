@@ -10,9 +10,14 @@
  *  todas de SOLO LECTURA:
  *
  *    1. El token, ¿de que app es, que permisos trae y cuando caduca?
- *    2. Las dos cuentas publicitarias, ¿se alcanzan? ¿estan activas?
+ *    2. Las dos cuentas publicitarias, ¿se alcanzan, estan activas y se puede
+ *       CREAR en ellas?
  *    3. La Pagina del .env, ¿existe y se puede leer?
  *    4. Esa Pagina, ¿tiene un numero de WhatsApp Business vinculado?
+ *
+ *  La segunda hace un ensayo con `validate_only`, que Meta revisa como si
+ *  fuera a crear y luego descarta. Sigue sin crearse nada, pero deja de dar
+ *  por buena una cuenta que solo se puede leer.
  *
  *  La cuarta es informativa. El numero que se usa sale de lineas.xlsx, no de
  *  aqui: por decision del proyecto no se valida nada contra la Fanpage.
@@ -61,6 +66,43 @@ async function leer(camino, params = {}) {
       mensaje: e?.message || error.message,
       codigo: e?.code,
       detalle: e?.error_user_msg || '',
+    };
+  }
+}
+
+/**
+ * ¿El token puede CREAR en esta cuenta, no solo leerla?
+ *
+ * Leer y escribir son permisos distintos, y esa diferencia costo una tarde:
+ * la cuenta salia en verde porque se leia bien, y al crear Meta contestaba
+ * "No tienes permiso de escritura" (codigo 200, subcodigo 2490585). Una
+ * comprobacion que solo lee no sirve para saber si se va a poder pautar.
+ *
+ * Se manda con `execution_options=['validate_only']`: Meta revisa los
+ * parametros como si fuera a crear, responde... y NO crea nada. No queda
+ * ningun objeto en Ads Manager.
+ */
+async function puedeCrear(cuentaId) {
+  const cuerpo = new URLSearchParams();
+  cuerpo.append('access_token', ACCESS_TOKEN);
+  cuerpo.append('execution_options', JSON.stringify(['validate_only']));
+  cuerpo.append('name', 'ENSAYO DE PERMISOS — NO SE CREA');
+  cuerpo.append('objective', 'OUTCOME_ENGAGEMENT');
+  cuerpo.append('status', 'PAUSED');
+  cuerpo.append('special_ad_categories', JSON.stringify([]));
+  cuerpo.append('is_adset_budget_sharing_enabled', 'false');
+
+  try {
+    await axios.post(`${GRAPH_BASE}/${cuentaId}/campaigns`, cuerpo, { timeout: 60000 });
+    return { ok: true };
+  } catch (error) {
+    const e = error.response?.data?.error;
+    return {
+      ok: false,
+      mensaje: e?.error_user_title || e?.message || error.message,
+      detalle: e?.error_user_msg || '',
+      codigo: e?.code,
+      subcodigo: e?.error_subcode,
     };
   }
 }
@@ -168,6 +210,19 @@ for (const [etiqueta, id] of Object.entries(CUENTAS)) {
   );
 
   if (!activa) problemas.push(`La cuenta ${etiqueta} no esta activa (estado ${d.account_status}).`);
+
+  // Leer no es crear. Esta es la comprobacion que de verdad importa.
+  const escribe = await puedeCrear(id);
+  if (escribe.ok) {
+    console.log(`      ${OK} ${C.verde}puede crear campanas${C.reset}`);
+  } else {
+    console.log(`      ${MAL} ${C.rojo}NO puede crear campanas: ${escribe.mensaje}${C.reset}`);
+    if (escribe.detalle) console.log(`         ${C.amarillo}${escribe.detalle}${C.reset}`);
+    console.log(
+      `         ${C.dim}codigo ${escribe.codigo}${escribe.subcodigo ? ` · subcodigo ${escribe.subcodigo}` : ''}${C.reset}`,
+    );
+    problemas.push(`El token lee ${etiqueta} pero no puede crear en ella: ${escribe.mensaje}`);
+  }
 }
 
 /* --- 3. La Pagina --------------------------------------------------------- */

@@ -37,9 +37,10 @@ import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 
 import { planificarEstructura, crearEstructuraCampana, verificarEstructura } from './src/builder.js';
+import { ensayarPlan, detalleDeMeta } from './src/ensayo.js';
 import { describirTargeting, SEDES } from './src/targeting.js';
 import { ACCESS_TOKEN, GRAPH_BASE, PAGE_ID, credencialesFaltantes, formatearMoneda } from './src/config.js';
-import { SEGMENTOS, REGIONES, TIPOS_REGIONAL } from './src/nomenclatura.js';
+import { SEGMENTOS, REGIONES, TIPOS_REGIONAL, SEDES_POR_REGION } from './src/nomenclatura.js';
 import { listarCampanas, cargarCampana, LIMITES_COPY } from './src/campanas.js';
 import { aplicarAjustes } from './src/ajustes.js';
 import { interpretar } from './src/interprete.js';
@@ -811,6 +812,34 @@ async function apiPublicar(req, res) {
 
   enviar('inicio', { objetos: guardado.plan.totales.objetos, totales: guardado.plan.totales });
 
+  /* --- Antes de crear NADA: preguntarle a Meta --------------------------- */
+  // La creacion va en orden (campana -> conjunto -> anuncios). Si el conjunto
+  // se rechaza, la campana ya esta creada y queda vacia en Ads Manager, ademas
+  // de quemar un numero del consecutivo. Esto lo pregunta antes, sin crear.
+  enviar('paso', { paso: 'ensayo', detalle: 'Preguntando a Meta si acepta el plan (no se crea nada)…' });
+
+  const ensayo = await ensayarPlan(guardado.plan);
+
+  if (!ensayo.ok) {
+    const primero = ensayo.problemas[0];
+    enviar('error', {
+      mensaje: `Meta no acepta ${primero.donde}: ${primero.mensaje}`,
+      detalle: primero.detalle,
+      codigo: primero.codigo,
+      subcodigo: primero.subcodigo,
+      tecnico: ensayo.problemas
+        .map((p) => `${p.donde}\n  ${p.tecnico || p.mensaje}\n  codigo ${p.codigo} · subcodigo ${p.subcodigo}`)
+        .join('\n\n'),
+      // Lo importante: NO se creo nada, asi que no hay que limpiar nada.
+      colgando: [],
+      nadaCreado: true,
+    });
+    return res.end();
+  }
+
+  enviar('paso', { paso: 'ensayo-ok', detalle: `Meta acepta ${ensayo.comprobado.join(', ')}.` });
+  if (ensayo.sinComprobar) enviar('aviso', { mensaje: `No se pudo ensayar ${ensayo.sinComprobar}.` });
+
   try {
     const resultado = await crearEstructuraCampana(guardado.plan, {
       onPaso: (paso, detalle) => enviar('paso', { paso, detalle: serializable(detalle) }),
@@ -824,7 +853,17 @@ async function apiPublicar(req, res) {
         if (a.creativeId) colgando.push(`Creativo de ${a.nombre}: ${a.creativeId}`);
         if (a.adId) colgando.push(`Anuncio ${a.nombre}: ${a.adId}`);
       }
-      enviar('error', { mensaje: resultado.error.message, colgando });
+      // "Invalid parameter" a secas no le dice nada a nadie: el motivo real
+      // viene en error_user_title y error_user_msg.
+      const d = detalleDeMeta(resultado.error);
+      enviar('error', {
+        mensaje: d.mensaje,
+        detalle: d.detalle,
+        codigo: d.codigo,
+        subcodigo: d.subcodigo,
+        tecnico: [d.tecnico, d.traza ? `fbtrace_id ${d.traza}` : ''].filter(Boolean).join('\n'),
+        colgando,
+      });
       return res.end();
     }
 
@@ -939,6 +978,10 @@ async function manejar(req, res) {
         // Para los objetivos regionales (R#), que necesitan region y tipo.
         regiones: REGIONES,
         tiposRegionales: Object.entries(TIPOS_REGIONAL).map(([codigo, que]) => ({ codigo, que })),
+        // Que tiendas entran en cada region: una campana regional no se pauta
+        // "en ningun sitio", se pauta sobre estas sedes y hay que verlas antes
+        // de aprobarla.
+        sedesPorRegion: SEDES_POR_REGION,
       });
     }
     if (ruta === '/api/interpretar' && req.method === 'POST') return await apiInterpretar(req, res);

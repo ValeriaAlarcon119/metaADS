@@ -24,6 +24,7 @@ import bizSdk from 'facebook-nodejs-business-sdk';
 
 import {
   siguienteConsecutivoCampana,
+  siguienteConsecutivoCampanaRegional,
   siguienteConsecutivoConjunto,
   siguienteConsecutivoAnuncio,
   obtenerSedeNomenclatura,
@@ -129,6 +130,30 @@ export async function consecutivoCampanaDeSede(adAccount, sede) {
   return { ...resultado, revisados: nombres.length, avisos };
 }
 
+/**
+ * Siguiente R# de una region (punto 10).
+ *
+ * Cuenta APARTE del C#: son dos series distintas dentro de la misma cuenta.
+ * Que Neiva vaya por C7 no significa que la proxima regional sea R8.
+ *
+ * @param {object} adAccount instancia de AdAccount
+ * @param {string} region    una de REGIONES (NARINO, PUTUMAYO, NEIVA, ...)
+ */
+export async function consecutivoCampanaDeRegion(adAccount, region) {
+  const nombres = await listarNombresDeCampanas(adAccount);
+  const resultado = siguienteConsecutivoCampanaRegional(nombres, region);
+
+  const avisos = [];
+  if (resultado.maximo === 0) {
+    avisos.push(
+      `No se encontro ninguna campana regional previa de ${region} con la nomenclatura del manual. ` +
+        'Se arranca en R1; verificalo contra la hoja "Consecutivos" del Excel de control (punto 10).',
+    );
+  }
+
+  return { ...resultado, revisados: nombres.length, avisos };
+}
+
 /** Siguiente CJTO# dentro de una campana (punto 5). Arranca en 1. */
 export async function consecutivoConjuntoDeCampana(campaignId) {
   if (!campaignId) return { siguiente: 1, maximo: 0, coincidencias: [], revisados: 0 };
@@ -149,6 +174,7 @@ export default {
   listarNombresDeConjuntos,
   listarNombresDeAnuncios,
   consecutivoCampanaDeSede,
+  consecutivoCampanaDeRegion,
   consecutivoConjuntoDeCampana,
   consecutivoAnuncioDeConjunto,
 };

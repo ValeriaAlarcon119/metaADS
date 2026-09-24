@@ -413,8 +413,42 @@ export function nombreConjuntoRegional({ numeroCampana, numeroConjunto, segmenta
  */
 export function siguienteConsecutivoCampana(nombres, sede) {
   const ficha = obtenerSedeNomenclatura(sede);
-  // C<numero> seguido de cualquier separador y luego el codigo de sede.
-  const patron = new RegExp(`^C(\\d{1,5})\\s*(?:\\|\\s*)?${ficha.codigo}(?![A-Z0-9])`, 'i');
+  return consecutivoDeCampanas(nombres, 'C', ficha.codigo);
+}
+
+/**
+ * Busca el R# mas alto de una region y devuelve el siguiente (punto 10).
+ *
+ * El R# es un contador APARTE del C#. Antes esta funcion no existia y el
+ * builder armaba el nombre regional con el consecutivo de la SEDE: si Neiva
+ * iba por C7, la primera campana de reconocimiento salia R8 en vez de R1.
+ * Cada prefijo cuenta lo suyo.
+ *
+ *   'R2 | NARINO | GEO | 230926'  -> 2
+ *
+ * @param {string[]} nombres  nombres de campana de la cuenta
+ * @param {string} region     una de REGIONES
+ */
+export function siguienteConsecutivoCampanaRegional(nombres, region) {
+  const reg = normalizarCampo(region);
+  if (!REGIONES.includes(reg)) {
+    throw new Error(`nomenclatura: region "${region}" invalida. Validas: ${REGIONES.join(', ')}`);
+  }
+  return consecutivoDeCampanas(nombres, 'R', reg);
+}
+
+/**
+ * El motor de los dos de arriba: <prefijo><numero> seguido de un separador
+ * cualquiera y del lugar (sede o region).
+ *
+ * Tolera los nombres viejos que no llevan el separador exacto:
+ *   'C3 | NEIVA | 150826'                      -> 3
+ *   'C1 NEIVA | 3115279768 | GENERAL | TESTEO' -> 1
+ *
+ * El lookahead final evita que NEIVA cace tambien 'NEIVANDO'.
+ */
+function consecutivoDeCampanas(nombres, prefijo, lugar) {
+  const patron = new RegExp(`^${prefijo}(\\d{1,5})\\s*(?:\\|\\s*)?${lugar}(?![A-Z0-9])`, 'i');
 
   const coincidencias = [];
   let maximo = 0;
@@ -424,7 +458,7 @@ export function siguienteConsecutivoCampana(nombres, sede) {
     // hace falta para distinguir 'C3 | NEIVA | ...' de 'C3 NEIVANDO ...'.
     const limpio = String(bruto ?? '')
       .normalize('NFD')
-      .replace(/[̬-ͯ]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .toUpperCase()
       .trim();
     const hit = patron.exec(limpio);
@@ -714,6 +748,7 @@ export default {
   nombreCampanaRegional,
   nombreConjuntoRegional,
   siguienteConsecutivoCampana,
+  siguienteConsecutivoCampanaRegional,
   siguienteConsecutivoConjunto,
   siguienteConsecutivoAnuncio,
   validarPresupuesto,

@@ -28,6 +28,7 @@ const estado = {
   catalogo: [],
   regiones: [],
   tiposRegionales: [],
+  sedesPorRegion: {},
   region: '',
   tipoRegional: '',
   // Se pone en true solo cuando alguien confirma el aviso de nomenclatura.
@@ -293,13 +294,31 @@ async function cargarObjetivos() {
   estado.catalogo = datos.catalogo;
   estado.regiones = datos.regiones;
   estado.tiposRegionales = datos.tiposRegionales;
+  estado.sedesPorRegion = datos.sedesPorRegion || {};
   if (!estado.objetivo) estado.objetivo = datos.porDefecto;
   pintarObjetivos();
 }
 
+/** La ficha de un objetivo cualquiera, por código. */
+function fichaDeObjetivo(codigo) {
+  return estado.catalogo.flatMap((o) => o.opciones).find((x) => x.codigo === codigo) || null;
+}
+
 /** La ficha del objetivo elegido, o null. */
 function objetivoElegido() {
-  return estado.catalogo.flatMap((o) => o.opciones).find((x) => x.codigo === estado.objetivo) || null;
+  return fichaDeObjetivo(estado.objetivo);
+}
+
+/**
+ * La región que cubre una sede, para proponerla sola al pasar a un objetivo
+ * regional. Si la sede sale en varias (Pasto está en PASTO y en NARINO) se
+ * queda con la más ajustada, que es la que menos tiendas tiene.
+ */
+function regionDeLaSede(sede) {
+  const candidatas = Object.entries(estado.sedesPorRegion || {})
+    .filter(([, sedes]) => sedes.includes(sede))
+    .sort((a, b) => a[1].length - b[1].length);
+  return candidatas[0]?.[0] || '';
 }
 
 function pintarObjetivos() {
@@ -746,32 +765,83 @@ function pintarTodo() {
   pintarPasos();
 }
 
+/**
+ * Caja de resumen: enseña las dos primeras líneas y deja el resto detrás de
+ * un botón que abre el modal.
+ *
+ * Antes se volcaba la lista entera aquí arriba. Con siete avisos la cabecera
+ * empujaba la etapa fuera de pantalla y había que hacer scroll para llegar a
+ * lo que de verdad se está revisando. Lo que importa es saber que HAY avisos
+ * y cuántos; leerlos con calma es otra cosa, y para eso está el modal.
+ *
+ * @param {object} o
+ * @param {string}   o.selector
+ * @param {string}   o.clase        alerta-amarilla | alerta-verde | ...
+ * @param {string}   o.titulo
+ * @param {string[]} o.lineas       HTML ya escapado por quien llama
+ * @param {string}   o.tituloModal
+ * @param {'error'|'aviso'|'pregunta'|'ok'} o.tipoModal
+ */
+const LINEAS_EN_EL_RESUMEN = 2;
+
+function pintarCajaResumen({ selector, clase, titulo, lineas, tituloModal, tipoModal }) {
+  const caja = $(selector);
+  mostrar(selector, lineas.length > 0);
+  if (lineas.length === 0) return;
+
+  const visibles = lineas.slice(0, LINEAS_EN_EL_RESUMEN);
+  const ocultas = lineas.length - visibles.length;
+
+  caja.className = `alerta ${clase}`;
+  caja.innerHTML =
+    '<div class="alerta-texto">' +
+    `<strong>${esc(titulo)}</strong>` +
+    `<ul class="alerta-resumen">${visibles.map((l) => `<li>${l}</li>`).join('')}</ul>` +
+    (ocultas > 0
+      ? '<div class="alerta-mas"><button type="button" class="btn btn-mini" data-ver-todo>' +
+        `Ver ${lineas.length === 1 ? 'el detalle' : `los ${lineas.length} completos`}` +
+        ` (${ocultas} más)</button></div>`
+      : '') +
+    '</div>';
+
+  const boton = caja.querySelector('[data-ver-todo]');
+  if (boton) {
+    boton.addEventListener('click', () =>
+      modal({
+        titulo: tituloModal,
+        tipo: tipoModal,
+        cuerpo: `<ul class="lista-modal">${lineas.map((l) => `<li>${l}</li>`).join('')}</ul>`,
+      }),
+    );
+  }
+}
+
 function pintarAvisos() {
   const avisos = estado.plan.avisos || [];
-  const caja = $('#avisos');
-  mostrar('#avisos', avisos.length > 0);
-  if (avisos.length === 0) return;
-
-  caja.className = 'alerta alerta-amarilla';
-  caja.innerHTML =
-    `<strong>Avisos (${avisos.length})</strong><ul>` +
-    avisos.map((a) => `<li>${esc(a)}</li>`).join('') +
-    '</ul>';
+  pintarCajaResumen({
+    selector: '#avisos',
+    clase: 'alerta-amarilla',
+    titulo: avisos.length === 1 ? '1 aviso' : `${avisos.length} avisos`,
+    lineas: avisos.map((a) => esc(a)),
+    tituloModal: avisos.length === 1 ? 'El aviso del plan' : `Los ${avisos.length} avisos del plan`,
+    tipoModal: 'aviso',
+  });
 }
 
 function pintarCambios() {
   const cambios = estado.plan.cambios || [];
-  const caja = $('#cambios');
-  mostrar('#cambios', cambios.length > 0);
-  if (cambios.length === 0) return;
-
-  caja.className = 'alerta alerta-verde';
-  caja.innerHTML =
-    `<strong>Editado en el panel (${cambios.length})</strong><ul>` +
-    cambios
-      .map((c) => `<li>${esc(c.etapa)} · ${esc(c.campo)}: <code>${esc(c.antes)}</code> → <code>${esc(c.despues)}</code></li>`)
-      .join('') +
-    '</ul>';
+  pintarCajaResumen({
+    selector: '#cambios',
+    clase: 'alerta-verde',
+    titulo:
+      cambios.length === 1 ? '1 cambio hecho en el panel' : `${cambios.length} cambios hechos en el panel`,
+    lineas: cambios.map(
+      (c) =>
+        `${esc(c.etapa)} · ${esc(c.campo)}: <code>${esc(c.antes)}</code> → <code>${esc(c.despues)}</code>`,
+    ),
+    tituloModal: 'Lo que cambiaste respecto a lo que calculó el sistema',
+    tipoModal: 'ok',
+  });
 }
 
 /* ------------------------------- etapa 1 ---------------------------------- */
@@ -780,12 +850,19 @@ function pintarEtapa1() {
   const p = estado.plan;
   const c = p.campana;
 
-  const consecutivo = c.consecutivo
-    ? `Última de ${p.sede.codigo}: C${c.consecutivo.maximo} → se crea C${c.consecutivo.siguiente} ` +
-      `(${c.consecutivo.previas} previas entre ${c.consecutivo.revisadas} campañas revisadas)`
-    : 'Se cuelga de una campaña que ya existe.';
-
   const o = p.objetivo;
+
+  // El prefijo y el ámbito salen del objetivo: una regional cuenta su R# por
+  // región, no el C# de la sede. Son dos series independientes.
+  const pre = o.prefijo;
+  const donde = o.ambito === 'regional' ? o.region : p.sede.codigo;
+
+  const consecutivo = c.consecutivo
+    ? (c.consecutivo.maximo
+        ? `Última de ${donde}: ${pre}${c.consecutivo.maximo} → se crea ${pre}${c.consecutivo.siguiente}`
+        : `No hay ninguna ${pre}# previa de ${donde} → se arranca en ${pre}1`) +
+      ` (${c.consecutivo.previas} previas entre ${c.consecutivo.revisadas} campañas revisadas)`
+    : 'Se cuelga de una campaña que ya existe.';
   const fuera = (p.nombresFueraDeManual || []).some((n) => n.nombre === c.nombre);
 
   const cajaObjetivo = `
@@ -883,6 +960,15 @@ function rellenarFormularioEtapa1() {
   const regional = p.objetivo.ambito === 'regional';
   mostrar('#c1-regional', regional);
 
+  // El patrón cambia con el objetivo: no es lo mismo una campaña de sede que
+  // una regional, y enseñar el de sede cuando ya es regional despista.
+  const pre = p.objetivo.prefijo;
+  $('#c1-patron').innerHTML =
+    `Patrón del manual: <code>${
+      regional ? `${pre}# | REGION | TIPO | DDMMAA` : `${pre}# | SEDE | DDMMAA`
+    }</code>. Si no cumple, el sistema lo rechaza y no se crea nada. ` +
+    `El <code>${pre}#</code> que pongas aquí se usa también en el nombre del conjunto.`;
+
   if (regional) {
     const opciones = (lista, actual, texto = (v) => v) =>
       lista
@@ -898,7 +984,72 @@ function rellenarFormularioEtapa1() {
       p.objetivo.tipoRegional,
       (v) => `${v.codigo} — ${v.que}`,
     );
+
+    // Las tiendas que entran en la región. Lo que se pauta no es una sede sino
+    // todas estas, y eso tiene que verse antes de aprobar.
+    const sedes = estado.sedesPorRegion?.[p.objetivo.region] || [];
+    $('#c1-region-sedes').innerHTML = sedes.length
+      ? `Cubre ${sedes.length === 1 ? 'la tienda' : `las ${sedes.length} tiendas`} de ` +
+        `<strong>${esc(p.objetivo.region)}</strong>: ` +
+        sedes.map((s) => `<code>${esc(s)}</code>`).join(' · ') +
+        (sedes.includes(p.sede.codigo)
+          ? ''
+          : `<br />Ojo: la sede del plan (<code>${esc(p.sede.codigo)}</code>) no está en esta región.`)
+      : `No hay tiendas registradas en <strong>${esc(p.objetivo.region)}</strong>.`;
   }
+}
+
+/**
+ * Al cambiar el objetivo dentro del formulario, el nombre cambia con él: el
+ * prefijo pasa de C# a R# (o al revés) y el consecutivo es OTRA serie — el C7
+ * de Neiva no hace que la primera regional sea R8.
+ *
+ * Ese número solo lo sabe el servidor, que lo lee de Ads Manager, así que se
+ * vuelve a planificar en vez de adivinarlo aquí. El formulario sigue abierto:
+ * `pintarTodo` lo vuelve a rellenar con el nombre nuevo.
+ */
+async function cambiarObjetivoEnEtapa1(codigo) {
+  if (!codigo || codigo === estado.plan.objetivo.codigo) return;
+
+  const ficha = fichaDeObjetivo(codigo);
+  const anterior = estado.plan.objetivo.codigo;
+  estado.objetivo = codigo;
+
+  // Un objetivo regional necesita región y tipo antes de poder planificar. Se
+  // propone la región que cubre la sede del plan, que es lo que quien está
+  // delante tenía en la cabeza; se puede cambiar en el selector de al lado.
+  if (ficha?.ambito === 'regional') {
+    estado.region ||= regionDeLaSede(estado.plan.sede.codigo) || estado.regiones[0];
+    estado.tipoRegional ||= estado.tiposRegionales[0]?.codigo || '';
+  }
+
+  // Un nombre fijado a mano deja de valer: llevaba el prefijo del objetivo
+  // anterior. Si no se borra aquí, el sistema seguiría mandando "C1 | NEIVA"
+  // para una campaña que ya es regional.
+  delete estado.ajustes.campana.nombre;
+  delete estado.ajustes.campana.nombreAnterior;
+
+  invalidarDesde(1);
+
+  // Si el plan nuevo no sale (falta algo, o Meta rechaza la combinación), el
+  // selector no puede quedarse enseñando un objetivo que no llegó a aplicarse.
+  if (!(await planificar())) {
+    estado.objetivo = anterior;
+    rellenarFormularioEtapa1();
+  }
+}
+
+/** Cambiar región o tipo también recalcula el nombre (R# | REGION | TIPO). */
+async function cambiarRegionEnEtapa1() {
+  const f = $('#c1-form');
+  estado.region = f.elements.region?.value || estado.region;
+  estado.tipoRegional = f.elements.tipoRegional?.value || estado.tipoRegional;
+
+  delete estado.ajustes.campana.nombre;
+  delete estado.ajustes.campana.nombreAnterior;
+
+  invalidarDesde(1);
+  await planificar();
 }
 
 /* ------------------------------- etapa 2 ---------------------------------- */
@@ -1854,8 +2005,10 @@ function procesarEvento(evento) {
       break;
 
     case 'error':
-      $('#creando-titulo').textContent = 'Falló la creación';
+      $('#creando-titulo').textContent = evento.nadaCreado ? 'Meta no acepta el plan' : 'Falló la creación';
       apuntar(evento.mensaje, 'l-mal');
+      if (evento.detalle) apuntar(evento.detalle, 'l-aviso');
+      if (evento.nadaCreado) apuntar('No se creó nada. Ads Manager quedó como estaba.', 'l-ok');
       if (evento.colgando?.length) {
         apuntar('Quedaron objetos a medias; revísalos o elimínalos en Ads Manager:', 'l-aviso');
         evento.colgando.forEach((c) => apuntar(`  · ${c}`, 'l-aviso'));
@@ -1863,15 +2016,26 @@ function procesarEvento(evento) {
       mostrar('#acciones-final', true);
 
       modal({
-        titulo: 'Meta rechazó la creación',
+        titulo: evento.nadaCreado ? 'Meta no acepta el plan' : 'Meta rechazó la creación',
         tipo: 'error',
         cuerpo:
-          `<p>${esc(evento.mensaje.split('\n')[0])}</p>` +
-          (evento.colgando?.length
-            ? '<p><strong>Quedaron objetos a medias en Ads Manager.</strong> Revísalos o elimínalos:</p>' +
-              `<ul>${evento.colgando.map((c) => `<li><code>${esc(c)}</code></li>`).join('')}</ul>`
-            : '<p class="sutil">No quedó nada a medias.</p>'),
-        tecnico: evento.mensaje,
+          `<p><strong>${esc(evento.mensaje.split('\n')[0])}</strong></p>` +
+          // El "por que" de Meta, que es lo unico accionable. Sin esto el
+          // modal decia solo "Invalid parameter".
+          (evento.detalle ? `<p>${esc(evento.detalle)}</p>` : '') +
+          (evento.codigo
+            ? `<p class="sutil">Código ${esc(evento.codigo)}${
+                evento.subcodigo ? ` · subcódigo ${esc(evento.subcodigo)}` : ''
+              }</p>`
+            : '') +
+          (evento.nadaCreado
+            ? '<p class="sutil">Se comprobó <strong>antes</strong> de crear, así que no se creó nada y no ' +
+              'hay nada que limpiar en Ads Manager.</p>'
+            : evento.colgando?.length
+              ? '<p><strong>Quedaron objetos a medias en Ads Manager.</strong> Revísalos o elimínalos:</p>' +
+                `<ul>${evento.colgando.map((c) => `<li><code>${esc(c)}</code></li>`).join('')}</ul>`
+              : '<p class="sutil">No quedó nada a medias.</p>'),
+        tecnico: evento.tecnico || evento.mensaje,
       });
       break;
 
@@ -1890,6 +2054,38 @@ function procesarEvento(evento) {
     default:
       break;
   }
+}
+
+/**
+ * Enlaces a Ads Manager, para ir a ver lo que se acaba de crear.
+ *
+ * El `act=` de la URL lleva el numero de cuenta sin el prefijo "act_", y los
+ * `selected_*_ids` dejan la tabla filtrada justo en lo nuestro. Sin esto hay
+ * que buscar la campaña a mano entre todas las de la cuenta.
+ */
+function enlacesDeAdsManager(creado, plan) {
+  const cuenta = String(plan?.cuenta?.id || '').replace(/^act_/, '');
+  if (!cuenta || !creado.campaignId) return '';
+
+  const base = 'https://adsmanager.facebook.com/adsmanager/manage';
+  const campana = `${base}/campaigns?act=${cuenta}&selected_campaign_ids=${creado.campaignId}`;
+  const conjuntos = `${base}/adsets?act=${cuenta}&selected_campaign_ids=${creado.campaignId}`;
+  const anuncios = `${base}/ads?act=${cuenta}&selected_campaign_ids=${creado.campaignId}`;
+
+  return `
+    <div class="bloque" style="margin-top:20px">
+      <h3>Verlo en Meta</h3>
+      <p class="sutil">
+        Se abre en Ads Manager, ya filtrado a esta campaña. Todo está en
+        <strong>borrador</strong>: no entrega impresiones ni gasta hasta que alguien lo active
+        a mano allí.
+      </p>
+      <div class="acciones">
+        <a class="btn btn-relleno" href="${campana}" target="_blank" rel="noopener">Ver la campaña</a>
+        <a class="btn" href="${conjuntos}" target="_blank" rel="noopener">Ver los conjuntos</a>
+        <a class="btn" href="${anuncios}" target="_blank" rel="noopener">Ver los anuncios</a>
+      </div>
+    </div>`;
 }
 
 function pintarResultado(creado, verificacion = []) {
@@ -1936,6 +2132,7 @@ function pintarResultado(creado, verificacion = []) {
   const degradados = (creado.anuncios || []).filter((a) => a.rechazos && a.rechazos.length > 0);
 
   $('#resultado').innerHTML = `
+    ${enlacesDeAdsManager(creado, estado.plan)}
     <div class="bloque" style="margin-top:20px">
       <h3>Creado en Ads Manager</h3>
       <dl class="datos">${identificadores}</dl>
@@ -2004,6 +2201,16 @@ function conectar() {
   $$('[data-reiniciar]').forEach((b) => b.addEventListener('click', reiniciar));
 
   $('#c1-form').addEventListener('submit', guardarEtapa1);
+
+  // Por delegación y una sola vez: el contenido del formulario se vuelve a
+  // pintar en cada plan, y enganchar los listeners ahí dentro los acumularía.
+  $('#c1-form').addEventListener('change', (e) => {
+    if (e.target.name === 'objetivo') return cambiarObjetivoEnEtapa1(e.target.value);
+    if (e.target.name === 'region' || e.target.name === 'tipoRegional') {
+      return cambiarRegionEnEtapa1();
+    }
+  });
+
   $('#c2-form').addEventListener('submit', guardarEtapa2);
   $('#c3-form').addEventListener('submit', guardarEtapa3);
   $('#btn-enviar').addEventListener('click', enviarAMeta);

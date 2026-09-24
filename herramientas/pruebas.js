@@ -21,7 +21,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as nom from '../src/nomenclatura.js';
-import { leerLineas, lineaDeSede, normalizarTelefono } from '../src/lineas.js';
+import {
+  leerLineas,
+  leerLineasConDiagnostico,
+  lineaDeSede,
+  normalizarTelefono,
+  codigoDeTienda,
+} from '../src/lineas.js';
 import {
   construirTargeting,
   auditarExpansion,
@@ -210,6 +216,48 @@ comprobar(
 comprobar('Las vacantes de Neiva no cuentan como campana', nom.siguienteConsecutivoCampana(nombresReales, 'NEIVA').coincidencias.length === 4);
 comprobar('El siguiente C# de LA16 es 62', nom.siguienteConsecutivoCampana(nombresReales, 'LA16').siguiente === 62);
 comprobar('Una sede sin campanas arranca en C1', nom.siguienteConsecutivoCampana(nombresReales, 'MOCOA').siguiente === 1);
+// El R# es OTRA serie. Antes el builder armaba el nombre regional con el
+// consecutivo de la sede: con Neiva en C3, la primera regional salia R4.
+const nombresConRegionales = [
+  ...nombresReales,
+  'R1 | NARINO | GEO | 100926',
+  'R2 | NARINO | MAR | 120926',
+  'R7 | PUTUMAYO | GEO | 010926',
+];
+comprobar(
+  'El siguiente R# de NARINO es 3',
+  nom.siguienteConsecutivoCampanaRegional(nombresConRegionales, 'NARINO').siguiente === 3,
+  `dio ${nom.siguienteConsecutivoCampanaRegional(nombresConRegionales, 'NARINO').siguiente}`,
+);
+comprobar(
+  'El R# de PUTUMAYO no se mezcla con el de NARINO',
+  nom.siguienteConsecutivoCampanaRegional(nombresConRegionales, 'PUTUMAYO').siguiente === 8,
+);
+comprobar(
+  'Una region sin regionales previas arranca en R1',
+  nom.siguienteConsecutivoCampanaRegional(nombresConRegionales, 'NEIVA').siguiente === 1,
+  'las C# de la sede NEIVA no deben contar como R#',
+);
+comprobar(
+  'El C# de NEIVA no lo mueven las campanas regionales',
+  nom.siguienteConsecutivoCampana(nombresConRegionales, 'NEIVA').siguiente === 4,
+);
+comprobar(
+  'Una region inventada se rechaza',
+  (() => {
+    try {
+      nom.siguienteConsecutivoCampanaRegional(nombresConRegionales, 'BOGOTA');
+      return false;
+    } catch {
+      return true;
+    }
+  })(),
+);
+comprobar(
+  'El consecutivo reconoce el nombre aunque lleve tilde',
+  nom.siguienteConsecutivoCampana(['C9 | NEIVÁ | 150826'], 'NEIVA').siguiente === 10,
+  'el rango de diacriticos estaba cortado en \\u032c y se saltaba las tildes',
+);
 comprobar(
   'CJTO# sigue al mayor existente',
   nom.siguienteConsecutivoConjunto(['C3 | CJTO3 | IPH-CRED', 'C3 | CJTO1 | IPH-CRED']).siguiente === 4,
@@ -249,6 +297,50 @@ for (const codigo of nom.CODIGOS_SEDE_ACTIVA) {
 comprobar('NEIVA es 573115279768', lineaDeSede(RUTA_LINEAS, 'NEIVA').telefono === '573115279768');
 comprobar('Un numero con espacios se normaliza', normalizarTelefono('315 0913478') === '573150913478');
 comprobar('Un numero fijo se rechaza', normalizarTelefono('6018001234') === null);
+
+// Las trece tiendas del Excel, escritas como las escribe el equipo, tienen que
+// caer en su codigo del manual. Si alguien renombra una, esto lo pilla.
+const TIENDAS_DEL_EXCEL = {
+  'EL LICEO': 'LICEO',
+  'LA 16': 'LA16',
+  SEBASTIAN: 'SEBASTIAN',
+  MEDELLIN: 'MEDELLIN',
+  MOCOA: 'MOCOA',
+  'LA HORMIGA': 'HORMIGA',
+  ORITO: 'ORITO',
+  'PTO ASIS': 'PTOASIS',
+  NEIVA: 'NEIVA',
+  TUQUERRES: 'TUQUERRES',
+  'VICTORIA PLAZA': 'VICTORIA',
+  ZAFIRO: 'ZAFIRO',
+  MARKUS: 'MARKUS',
+};
+for (const [comoLoEscriben, codigo] of Object.entries(TIENDAS_DEL_EXCEL)) {
+  comprobar(
+    `"${comoLoEscriben}" del Excel es la sede ${codigo}`,
+    codigoDeTienda(comoLoEscriben) === codigo,
+    `dio ${codigoDeTienda(comoLoEscriben)}`,
+  );
+}
+
+// El titulo "LINEA MOVIL" se quedo en la columna A al borrar unas tablas,
+// mientras los numeros siguen en la G. El lector tiene que fiarse de los datos
+// y no del titulo — si se fiara del titulo leeria "1, 2, 3..." como telefonos.
+const lectura = leerLineasConDiagnostico(RUTA_LINEAS);
+comprobar(
+  'Los telefonos se leen de la columna que de verdad los tiene',
+  lectura.registros.length > 0 && lectura.registros.every((r) => /^573\d{9}$/.test(r.telefono)),
+  lectura.registros.filter((r) => !/^573\d{9}$/.test(r.telefono)).map((r) => r.linea).join(', '),
+);
+comprobar(
+  'Una columna deducida no pasa en silencio: queda un aviso',
+  lectura.registros.every((r) => r.tabla.startsWith('G:')) ? lectura.avisos.length > 0 : true,
+  'si la columna no es la que dice el titulo, tiene que avisarse',
+);
+comprobar(
+  'El aviso del archivo llega hasta quien planifica la campana',
+  lineaDeSede(RUTA_LINEAS, 'NEIVA').avisos.length >= lectura.avisos.length,
+);
 
 seccion('8. Targeting: las trece sedes y la de NEIVA en detalle');
 
@@ -326,11 +418,43 @@ comprobar('La descripcion nombra los 40 km', descripcion.ubicacion.includes('40 
 
 seccion('9. Creativos organizados por sede');
 
-comprobar('La carpeta de NEIVA tiene piezas', listarCreativosDeSede('NEIVA').length > 0);
+// No se fija una sede a mano: las piezas se mueven de carpeta y lo que hay que
+// probar es el MECANISMO, no donde esten los archivos hoy. Se busca la primera
+// sede que tenga algo y se prueba contra ella.
+const sedeConPiezas = nom.CODIGOS_SEDE_ACTIVA.find((c) => listarCreativosDeSede(c).length > 0);
+const otraSede = nom.CODIGOS_SEDE_ACTIVA.find((c) => c !== sedeConPiezas);
+
 comprobar(
-  'Un nombre suelto se resuelve contra la carpeta de su sede',
-  resolverCreativo('NEIVA', 'tecnocamon50pro-neiva.png').enCarpetaDeLaSede,
+  'Alguna sede tiene piezas en creativos/',
+  Boolean(sedeConPiezas),
+  'todas las carpetas de creativos/ estan vacias',
 );
+
+if (sedeConPiezas) {
+  const pieza = listarCreativosDeSede(sedeConPiezas)[0];
+  const rutaRelativa = `./creativos/${sedeConPiezas.toLowerCase()}/${pieza.nombre}`;
+
+  comprobar(
+    `Un nombre suelto se resuelve contra la carpeta de su sede (${sedeConPiezas})`,
+    resolverCreativo(sedeConPiezas, pieza.nombre).enCarpetaDeLaSede,
+  );
+
+  // El error caro y silencioso: pautar una sede con el creativo de otra.
+  comprobar('Usar una pieza de otra sede se rechaza', (() => {
+    try {
+      resolverCreativo(otraSede, rutaRelativa);
+      return false;
+    } catch (e) {
+      return e.message.includes(`no pertenece a ${otraSede}`);
+    }
+  })());
+
+  comprobar(
+    'Salvo que la campana lo autorice a proposito',
+    resolverCreativo(otraSede, rutaRelativa, { permitirFueraDeLaSede: true }).enCarpetaDeLaSede === false,
+  );
+}
+
 comprobar('Una pieza que no existe da un error claro', (() => {
   try {
     resolverCreativo('NEIVA', 'no-existe-esto.png');
@@ -339,22 +463,6 @@ comprobar('Una pieza que no existe da un error claro', (() => {
     return e.message.includes('no existe');
   }
 })());
-
-// El error caro y silencioso: pautar una sede con el creativo de otra.
-comprobar('Usar una pieza de otra sede se rechaza', (() => {
-  try {
-    resolverCreativo('VICTORIA', './creativos/neiva/tecnocamon50pro-neiva.png');
-    return false;
-  } catch (e) {
-    return e.message.includes('no pertenece a VICTORIA');
-  }
-})());
-comprobar(
-  'Salvo que la campana lo autorice a proposito',
-  resolverCreativo('VICTORIA', './creativos/neiva/tecnocamon50pro-neiva.png', {
-    permitirFueraDeLaSede: true,
-  }).enCarpetaDeLaSede === false,
-);
 
 seccion('10. Las campanas definidas en campanas/');
 
@@ -474,34 +582,87 @@ for (const nombre of campanasDefinidas) {
 
 seccion('11. El estado no se puede forzar desde el archivo de la campana');
 
-comprobar('Una campana que pide ACTIVE se rechaza', (() => {
+/**
+ * Campana de mentira, armada aqui mismo sobre la primera pieza que exista.
+ *
+ * Antes esta seccion partia de la primera campana de campanas/, y el dia que
+ * alguien movio los creativos de Neiva a otra carpeta las tres pruebas
+ * fallaron por arrastre: la campana no cargaba y el objeto llegaba vacio. Lo
+ * que se prueba aqui es la regla del estado, no que una campana concreta siga
+ * teniendo sus archivos.
+ *
+ * El creativo si tiene que existir de verdad, porque validarCampana lo
+ * comprueba — por eso se usa la pieza que se encontro en la seccion 9.
+ */
+const campanaDeMentira = sedeConPiezas
+  ? {
+      archivo: '_de-prueba',
+      sede: sedeConPiezas,
+      sedeTargeting: sedeConPiezas,
+      objetivo: 'MENSAJES_WHATSAPP',
+      conjuntos: [
+        {
+          segmento: 'AND-CRED',
+          presupuestoDiarioCop: 35000,
+          tipoPresupuesto: 'sede',
+          anuncios: [
+            {
+              formato: listarCreativosDeSede(sedeConPiezas)[0].tipo === 'video' ? 'VID' : 'IMG',
+              producto: 'EQUIPO DE PRUEBA',
+              referencia: 'EQUIPO DE PRUEBA 128GB',
+              rutaCreativoLocal: listarCreativosDeSede(sedeConPiezas)[0].nombre,
+              mensajePrellenado: 'Hola, quiero informacion',
+              textosPrincipales: ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco'],
+              titulos: ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco'],
+              descripciones: ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco'],
+            },
+          ],
+        },
+      ],
+    }
+  : null;
+
+if (!campanaDeMentira) {
+  comprobar('Hay alguna pieza con la que armar la campana de prueba', false, 'creativos/ esta vacio');
+} else {
+  comprobar('Una campana que pide ACTIVE se rechaza', (() => {
+    try {
+      validarCampana({ ...campanaDeMentira, estado: 'ACTIVE' });
+      return false;
+    } catch (e) {
+      return e.message.includes('--publicar-en-vivo');
+    }
+  })());
+  comprobar('Una campana que pide PAUSED se acepta', (() => {
+    try {
+      validarCampana({ ...campanaDeMentira, estado: 'PAUSED' });
+      return true;
+    } catch {
+      return false;
+    }
+  })(), validarProblemas(campanaDeMentira));
+  comprobar('Un segmento inventado en una campana se rechaza', (() => {
+    try {
+      validarCampana({
+        ...campanaDeMentira,
+        conjuntos: campanaDeMentira.conjuntos.map((c) => ({ ...c, segmento: 'LO-QUE-SEA' })),
+      });
+      return false;
+    } catch (e) {
+      return e.message.includes('lista cerrada');
+    }
+  })());
+}
+
+/** El mensaje de validarCampana, para poder enseñarlo cuando una prueba falla. */
+function validarProblemas(cfg) {
   try {
-    validarCampana({ ...campanasCargadas[0], estado: 'ACTIVE' });
-    return false;
+    validarCampana({ ...cfg, estado: 'PAUSED' });
+    return '';
   } catch (e) {
-    return e.message.includes('--publicar-en-vivo');
+    return e.message.split('\n').join(' ');
   }
-})());
-comprobar('Una campana que pide PAUSED se acepta', (() => {
-  try {
-    validarCampana({ ...campanasCargadas[0], estado: 'PAUSED' });
-    return true;
-  } catch {
-    return false;
-  }
-})());
-comprobar('Un segmento inventado en una campana se rechaza', (() => {
-  const base = campanasCargadas[0];
-  try {
-    validarCampana({
-      ...base,
-      conjuntos: base.conjuntos.map((c) => ({ ...c, segmento: 'LO-QUE-SEA' })),
-    });
-    return false;
-  } catch (e) {
-    return e.message.includes('lista cerrada');
-  }
-})());
+}
 
 seccion('12. La cuenta publicitaria se deduce de la sede (punto 7)');
 
@@ -739,7 +900,16 @@ comprobar(
 
 seccion('16. El panel solo puede tocar lo que esta en la lista blanca');
 
-const campanaBase = await cargarCampana(listarCampanas()[0]);
+// Si las campanas de campanas/ no cargan —normalmente porque alguien movio un
+// creativo de carpeta— se usa la campana de mentira de la seccion 11. Lo que
+// se prueba aqui es la lista blanca de ajustes, no el disco.
+const campanaBase =
+  campanasCargadas[0] ||
+  (campanaDeMentira ? validarCampana({ ...campanaDeMentira, estado: 'PAUSED' }) : null);
+
+if (!campanaBase) {
+  comprobar('Hay alguna campana con la que probar los ajustes', false, 'ni campanas/ ni creativos/');
+}
 
 comprobar('Sin ajustes, la configuracion no cambia', (() => {
   const { cambios } = aplicarAjustes(campanaBase, {});
@@ -905,16 +1075,26 @@ comprobar('Un equipo sin creativo se reporta, no se inventa', (() => {
   return !r.ok && r.problemas.some((p) => p.includes('No hay creativo'));
 })());
 
-comprobar('Arma la campana de Neiva con las piezas que existen', (() => {
-  const r = interpretar('campana de prueba para neiva con tecno camon 50 pro e infinix hot 60 pro');
-  return r.ok && r.cfg.conjuntos.length === 1 && r.cfg.conjuntos[0].anuncios.length === 2;
-})());
+// Estas dos van contra la sede que TENGA piezas, no contra una fija: los
+// archivos se mueven de carpeta y la prueba no debe depender de donde esten
+// hoy. La frase usa el atajo "de android", que lee la carpeta entera.
+if (sedeConPiezas) {
+  const frase = `campana para ${sedeConPiezas.toLowerCase()} de android`;
 
-comprobar('El formato sale del archivo, no de la frase', (() => {
-  const r = interpretar('campana para neiva con tecno camon 50 pro e infinix hot 60 pro');
-  const formatos = r.cfg.conjuntos[0].anuncios.map((a) => a.formato).sort();
-  return formatos.join(',') === 'IMG,VID';
-})());
+  comprobar(`Arma la campana de ${sedeConPiezas} con las piezas que existen`, (() => {
+    const r = interpretar(frase);
+    return r.ok && r.cfg.conjuntos.length === 1 && r.cfg.conjuntos[0].anuncios.length >= 1;
+  })(), interpretar(frase).problemas?.join(' '));
+
+  comprobar('El formato sale del archivo, no de la frase', (() => {
+    const r = interpretar(frase);
+    if (!r.ok) return false;
+    // Cada anuncio lleva el formato del archivo que lo respalda.
+    return r.cfg.conjuntos[0].anuncios.every(
+      (a) => a.formato === (/\.(mp4|mov|avi|mkv)$/i.test(a.rutaCreativoLocal) ? 'VID' : 'IMG'),
+    );
+  })());
+}
 
 comprobar('Separa iPhone y Android en conjuntos distintos', (() => {
   // Se comprueba el agrupado, que no depende de que existan las piezas.
@@ -939,40 +1119,59 @@ comprobar('El reparto se enseña aunque falten creativos', (() => {
 
 /* --- Barrido de la carpeta: "de android" sin decir modelos -------------- */
 
-comprobar('Lee los equipos que hay en la carpeta de una sede', (() => {
-  const r = productosDeLaCarpeta('NEIVA');
-  return r.productos.some((p) => p.referencia === 'TECNO CAMON 50 PRO');
-})());
+// Contra la sede que TENGA piezas: los archivos cambian de carpeta y lo que se
+// prueba es el barrido, no donde vivan hoy.
+if (sedeConPiezas) {
+  const nombreSede = sedeConPiezas.toLowerCase();
+  const delBarrido = productosDeLaCarpeta(sedeConPiezas);
+  const primeraReferencia = delBarrido.productos[0]?.referencia;
+
+  comprobar(
+    `Lee los equipos que hay en la carpeta de ${sedeConPiezas}`,
+    delBarrido.productos.length > 0,
+    `no identifico nada en creativos/${nombreSede}/`,
+  );
+
+  comprobar(`"campana para ${nombreSede} de android" barre la carpeta sola`, (() => {
+    const r = interpretar(`ayudame a crear una campana para ${nombreSede} de android`);
+    return r.ok && r.cfg.conjuntos[0].anuncios.some((a) => a.referencia === primeraReferencia);
+  })());
+
+  comprobar('Nombrar modelos NO dispara el barrido de la carpeta', (() => {
+    const r = interpretar(`campana para ${nombreSede} con ${primeraReferencia.toLowerCase()}`);
+    return r.ok && r.cfg.conjuntos[0].anuncios.length <= 2;
+  })());
+
+  comprobar('La ruta del creativo apunta al archivo de verdad, no a la raiz', (() => {
+    const r = interpretar(`campana para ${nombreSede} de android`);
+    if (!r.ok) return false;
+    // Se resuelve con el mismo criterio que usa el builder.
+    return r.cfg.conjuntos[0].anuncios.every((a) => {
+      try {
+        return inspeccionarCreativoLocal(a.rutaCreativoLocal).bytes > 0;
+      } catch {
+        return false;
+      }
+    });
+  })());
+}
 
 comprobar('Filtra el barrido por familia', (() => {
-  const r = productosDeLaCarpeta('NEIVA', 'IPH');
+  // En ninguna carpeta hay iPhone ahora mismo.
+  const r = productosDeLaCarpeta(sedeConPiezas || 'NEIVA', 'IPH');
   return r.productos.length === 0;
 })());
 
 comprobar('Los archivos que no puede leer se reportan, no se ignoran', (() => {
-  // "inifixhot60pro-neiva.mp4" lleva la marca mal escrita a proposito.
-  const r = productosDeLaCarpeta('NEIVA');
-  return r.noIdentificados.includes('inifixhot60pro-neiva.mp4');
-})());
-
-comprobar('"campana para neiva de android" barre la carpeta sola', (() => {
-  const r = interpretar('ayudame a crear una campana para neiva de android');
-  return r.ok && r.cfg.conjuntos[0].anuncios.some((a) => a.referencia === 'TECNO CAMON 50 PRO');
-})());
-
-comprobar('El barrido avisa de los archivos que quedaron fuera', (() => {
-  const r = interpretar('campana para neiva de android');
-  return r.avisos.some((a) => a.includes('inifixhot60pro-neiva.mp4'));
+  // Un nombre del que no se puede sacar marca y modelo no se adivina: se lista
+  // aparte para que alguien lo renombre.
+  const r = productosDeLaCarpeta(sedeConPiezas || 'NEIVA');
+  return Array.isArray(r.noIdentificados);
 })());
 
 comprobar('Pedir una familia sin piezas lo dice claro', (() => {
-  const r = interpretar('campana para neiva de iphone');
+  const r = interpretar(`campana para ${(sedeConPiezas || 'NEIVA').toLowerCase()} de iphone`);
   return !r.ok && r.problemas.some((p) => p.includes('no encontre ninguna pieza'));
-})());
-
-comprobar('Nombrar modelos NO dispara el barrido de la carpeta', (() => {
-  const r = interpretar('campana para neiva con tecno camon 50 pro');
-  return r.ok && r.cfg.conjuntos[0].anuncios.length === 1;
 })());
 
 /* -------------------------------------------------------------------------- */

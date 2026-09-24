@@ -112,12 +112,18 @@
   --exito: #46c65a;
   --exito-fondo: #102415;
   --exito-borde: #1f5e2c;
+  /* El verde claro solo sirve como texto o como barra. De fondo de boton con
+     letra blanca daba 2.2:1 — ilegible. Para rellenos va este, que da 5.2:1 y
+     ademas pesa menos en pantalla. Es el mismo en los dos modos. */
+  --exito-solido: #1a7d36;
   --aviso: #e0a52c;
   --aviso-fondo: #241c0c;
   --aviso-borde: #5e4718;
+  --aviso-solido: #8a5a14;
   --error: #f2584f;
   --error-fondo: #26100f;
   --error-borde: #6d2723;
+  --error-solido: #b8241c;
   --info: #5aa2f0;
   --info-fondo: #0c1c2e;
   --info-borde: #1e4a78;
@@ -161,12 +167,15 @@
   --exito: #1a7f37;
   --exito-fondo: #eaf6ec;
   --exito-borde: #b6dfc0;
+  --exito-solido: #1a7d36;
   --aviso: #96621a;
   --aviso-fondo: #fdf4e3;
   --aviso-borde: #e8cea0;
+  --aviso-solido: #8a5a14;
   --error: #c62a21;
   --error-fondo: #fdeceb;
   --error-borde: #f2bdb9;
+  --error-solido: #b8241c;
   --info: #0b5bc4;
   --info-fondo: #eaf2fd;
   --info-borde: #bcd6f5;
@@ -356,12 +365,6 @@ code {
   color: var(--marca-rojo);
 }
 
-.marca .sutil {
-  font-size: var(--t-caption);
-  padding-left: var(--e3);
-  border-left: 1px solid var(--borde);
-}
-
 .barra-derecha {
   display: flex;
   align-items: center;
@@ -399,6 +402,11 @@ code {
 
 /* --- Botones ------------------------------------------------------------- */
 
+/* Un boton plano de un color plano es lo que se veia "basico". Lo que le
+   faltaba no era color sino relieve: un degradado de un solo paso, una sombra
+   corta y un brillo de 1px arriba. Al pulsar, el boton baja y pierde la
+   sombra — es el unico sitio donde el panel imita algo fisico. */
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -407,73 +415,79 @@ code {
   padding: 9px 16px;
   border-radius: var(--r-m);
   border: 1px solid var(--borde-medio);
-  background: var(--sup-2);
+  background: linear-gradient(180deg, var(--sup-1), var(--sup-3));
   color: var(--txt);
   font-family: inherit;
   font-size: var(--t-body-s);
   font-weight: var(--peso-semi);
+  letter-spacing: 0.005em;
   line-height: 1.4;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: var(--sombra-1);
   transition: background var(--rapido), border-color var(--rapido), box-shadow var(--rapido),
     transform 60ms;
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--sup-3);
+  background: linear-gradient(180deg, var(--sup-2), var(--sup-alta));
   border-color: var(--borde-fuerte);
+  box-shadow: var(--sombra-2);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(0.5px);
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 .btn:disabled {
   opacity: 0.45;
+  box-shadow: none;
   cursor: not-allowed;
 }
 
-.btn-primario {
-  background: var(--acento);
-  border-color: var(--acento);
-  color: var(--acento-txt);
+/* --- Botones de color ----------------------------------------------------
+   Solo dos botones van rellenos: el primario de cada formulario y el de
+   aprobar. El resto son neutros. Si todo va de color, nada destaca. */
+
+.btn-relleno,
+.btn-primario,
+.btn-aprobar,
+.btn-enviar {
+  --relleno: var(--acento);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--relleno) 92%, #fff), var(--relleno));
+  border-color: color-mix(in srgb, var(--relleno) 82%, #000);
+  box-shadow: var(--sombra-1), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-/* El hover NO puede aclarar el fondo hasta perder el texto: se OSCURECE, que
-   mantiene el contraste con la letra blanca. Fue un fallo real. */
-.btn-primario:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--acento) 86%, #000);
-  border-color: color-mix(in srgb, var(--acento) 86%, #000);
+.btn-primario {
+  --relleno: var(--acento);
   color: var(--acento-txt);
-  box-shadow: var(--anillo);
 }
 
 .btn-aprobar,
 .btn-enviar {
-  background: var(--exito);
-  border-color: var(--exito);
+  --relleno: var(--exito-solido);
   color: #fff;
 }
 
+/* El hover NO puede aclarar el fondo hasta perder el texto: se OSCURECE, que
+   mantiene el contraste con la letra. Fue un fallo real. */
+.btn-relleno:hover:not(:disabled),
+.btn-primario:hover:not(:disabled),
 .btn-aprobar:hover:not(:disabled),
 .btn-enviar:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--exito) 84%, #000);
-  border-color: color-mix(in srgb, var(--exito) 84%, #000);
-  color: #fff;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--exito) 25%, transparent);
+  background: color-mix(in srgb, var(--relleno) 86%, #000);
+  border-color: color-mix(in srgb, var(--relleno) 72%, #000);
+  box-shadow: var(--sombra-2), 0 0 0 3px color-mix(in srgb, var(--relleno) 22%, transparent);
 }
 
-/* En modo oscuro los fondos son oscuros de salida, asi que ahi el hover
-   aclara un poco en vez de oscurecer. El texto sigue siendo el mismo. */
+/* En modo oscuro el naranja ya es claro y lleva letra oscura: ahi aclarar es
+   lo que mantiene el contraste. El verde relleno es el mismo en los dos
+   modos, asi que se sigue oscureciendo. */
 [data-tema="oscuro"] .btn-primario:hover:not(:disabled) {
   background: color-mix(in srgb, var(--acento) 88%, #fff);
   border-color: color-mix(in srgb, var(--acento) 88%, #fff);
-}
-
-[data-tema="oscuro"] .btn-aprobar:hover:not(:disabled),
-[data-tema="oscuro"] .btn-enviar:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--exito) 88%, #fff);
-  border-color: color-mix(in srgb, var(--exito) 88%, #fff);
 }
 
 .btn-enviar {
@@ -485,6 +499,7 @@ code {
   background: var(--sup-2);
   border-color: var(--borde);
   color: var(--txt-3);
+  box-shadow: none;
   filter: none;
 }
 
@@ -493,23 +508,61 @@ code {
   background: transparent;
   border-color: transparent;
   color: var(--txt-2);
+  box-shadow: none;
 }
 
 .btn-fantasma:hover:not(:disabled) {
   background: var(--sup-3);
   border-color: transparent;
   color: var(--txt);
+  box-shadow: none;
 }
 
 .btn-peligro {
   background: transparent;
   border-color: var(--error-borde);
   color: var(--error);
+  box-shadow: none;
 }
 
 .btn-peligro:hover:not(:disabled) {
   background: var(--error-fondo);
   border-color: var(--error);
+  box-shadow: none;
+}
+
+/* Boton de enlace: el "ver los 7 avisos" de dentro de una alerta. No compite
+   con las acciones de la etapa, que son las que de verdad importan. */
+.btn-mini {
+  padding: 5px 11px;
+  font-size: var(--t-caption);
+  border-radius: var(--r-s);
+  background: var(--sup-2);
+  border-color: var(--borde);
+  color: var(--txt-2);
+  box-shadow: none;
+}
+
+.btn-mini:hover:not(:disabled) {
+  background: var(--sup-3);
+  border-color: var(--borde-medio);
+  color: var(--txt);
+  box-shadow: none;
+}
+
+/* Los enlaces a Ads Manager son botones: un <a> no debe salir subrayado ni
+   del color de enlace solo por ser un <a>. */
+a.btn,
+a.btn:hover {
+  text-decoration: none;
+}
+
+a.btn {
+  color: var(--txt);
+}
+
+a.btn-relleno {
+  color: var(--acento-txt);
 }
 
 .btn-icono {
@@ -656,7 +709,7 @@ code {
 }
 
 .paso.hecho .numero {
-  background: var(--exito);
+  background: var(--exito-solido);
   color: #fff;
   font-size: 0;
 }
@@ -784,85 +837,140 @@ code {
   line-height: 1.5;
 }
 
-/* --- Alertas -------------------------------------------------------------- */
+/* --- Alertas --------------------------------------------------------------
 
+   De contorno, no de relleno. Antes la caja entera iba teñida del color y el
+   texto tambien: tres avisos seguidos eran tres bloques de amarillo y verde
+   solido, y el ojo no sabia donde mirar. Ahora el centro es la superficie
+   normal y el color vive en una sola barra a la izquierda y en el punto del
+   titulo. Se distingue igual de rapido y no grita.
+
+   Cada variante solo cambia --tono. */
+
+/* Bloque, no fila. Media docena de sitios rellenan una alerta con
+   <strong> + <ul> sueltos; en fila quedaban uno al lado del otro. */
 .alerta {
-  display: flex;
-  gap: var(--e3);
-  border-radius: var(--r-m);
-  padding: var(--e4);
+  --tono: var(--borde-medio);
+  display: block;
+  border-radius: var(--r-l);
+  padding: var(--e3) var(--e4);
   margin-bottom: var(--e4);
-  border: 1px solid;
-  border-left-width: 3px;
+  background: var(--sup-1);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--tono);
+  color: var(--txt-2);
   font-size: var(--t-body-s);
   line-height: 1.6;
+  box-shadow: var(--sombra-1);
 }
 
 .alerta > .i {
-  margin-top: 3px;
+  color: var(--tono);
+  vertical-align: -3px;
+}
+
+.alerta-texto {
+  min-width: 0;
 }
 
 .alerta strong:first-child {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
   margin-bottom: var(--e2);
+  color: var(--txt);
   font-size: var(--t-body);
   font-weight: var(--peso-semi);
 }
 
+/* El punto es todo el color que necesita el titulo. */
+.alerta strong:first-child::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pastilla);
+  background: var(--tono);
+}
+
 .alerta ul {
   margin: var(--e2) 0 0;
-  padding-left: var(--e5);
+  padding-left: var(--e4);
 }
 
 .alerta li {
   margin-bottom: var(--e1);
 }
 
+.alerta li::marker {
+  color: var(--tono);
+}
+
+/* En el resumen cada linea se corta a dos renglones: la caja no puede
+   convertirse en un muro. El texto entero esta en el modal. */
+.alerta-resumen li {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.alerta-mas {
+  margin-top: var(--e3);
+}
+
 .alerta-amarilla {
-  color: var(--aviso);
-  background: var(--aviso-fondo);
-  border-color: var(--aviso-borde);
+  --tono: var(--aviso);
 }
 
 .alerta-roja {
-  color: var(--error);
-  background: var(--error-fondo);
-  border-color: var(--error-borde);
+  --tono: var(--error);
 }
 
 .alerta-verde {
-  color: var(--exito);
-  background: var(--exito-fondo);
-  border-color: var(--exito-borde);
+  --tono: var(--exito);
 }
 
 .alerta-azul {
-  color: var(--info);
-  background: var(--info-fondo);
-  border-color: var(--info-borde);
+  --tono: var(--info);
+}
+
+/* Lista completa dentro del modal: sin cortes y con aire entre lineas. */
+.lista-modal {
+  margin: 0;
+  padding-left: var(--e4);
+  display: grid;
+  gap: var(--e2);
+  font-size: var(--t-body-s);
+  line-height: 1.6;
 }
 
 /* --- Casilla de estado ---------------------------------------------------- */
 
+/* Misma regla que las alertas: el centro es superficie normal y el color solo
+   aparece en la barra de la izquierda y en el cuadrito del check. */
 .casilla-estado {
+  --tono: var(--exito);
+  --tono-solido: var(--exito-solido);
   display: flex;
   align-items: flex-start;
   gap: var(--e3);
   padding: var(--e4) var(--e5);
   border-radius: var(--r-l);
-  border: 1px solid var(--exito-borde);
-  border-left-width: 3px;
-  background: var(--exito-fondo);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--tono);
+  background: var(--sup-1);
+  box-shadow: var(--sombra-1);
 }
 
 .casilla-estado.mal-estado {
-  border-color: var(--error-borde);
-  background: var(--error-fondo);
+  --tono: var(--error);
+  --tono-solido: var(--error-solido);
 }
 
 .casilla-estado.casilla-aviso {
-  border-color: var(--aviso-borde);
-  background: var(--aviso-fondo);
+  --tono: var(--aviso);
+  --tono-solido: var(--aviso-solido);
 }
 
 .marca-check {
@@ -872,19 +980,10 @@ code {
   border-radius: var(--r-s);
   display: grid;
   place-items: center;
-  background: var(--exito);
+  background: var(--tono-solido, var(--exito-solido));
   color: #fff;
   font-weight: var(--peso-fuerte);
   font-size: 13px;
-}
-
-.mal-estado .marca-check {
-  background: var(--error);
-}
-
-.casilla-aviso .marca-check {
-  background: var(--aviso);
-  color: #fff;
 }
 
 .casilla-estado .titulo {
