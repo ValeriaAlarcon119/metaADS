@@ -11,6 +11,40 @@ hacen exactamente lo mismo y pasan por las mismas validaciones.
 
 ---
 
+## Instalar en un equipo nuevo
+
+```bash
+git clone https://github.com/ValeriaAlarcon119/metaADS.git
+cd metaADS
+npm install
+```
+
+El repositorio trae **todo el código**, pero a propósito **no trae tres cosas**.
+Ninguna de ellas debe viajar por internet, así que hay que ponerlas a mano en
+cada equipo:
+
+| Qué falta | Dónde va | Por qué no está en git |
+|---|---|---|
+| **`.env`** | en la raíz del proyecto | Lleva un token con control total sobre las dos cuentas publicitarias. Copia `.env.ejemplo` como `.env` y rellénalo. |
+| **`lineas.xlsx`** | en la raíz del proyecto | Los 13 teléfonos de WhatsApp y el nombre del líder de cada sede. Son datos personales. |
+| **Las piezas** | `creativos/<sede>/` | Fotos y videos, decenas de MB cada uno. Viven en el Drive del equipo creativo (punto 12 del manual). |
+
+Las carpetas de `creativos/` sí vienen creadas, vacías. El archivo se nombra con
+la marca y el modelo: `tecnocamon50pro-mocoa.png`.
+
+Cuando estén los tres, comprueba que todo responde antes de pautar nada:
+
+```bash
+npm test            # 416 comprobaciones, sin red ni credenciales
+npm run cuentas     # que el token alcance las cuentas y pueda CREAR en ellas
+npm run lineas      # el WhatsApp que le toca a cada sede
+```
+
+En Windows, `abrir-panel.bat` arranca el panel y abre el navegador de un doble
+clic, sin tocar la consola.
+
+---
+
 ## El panel (recomendado)
 
 ```bash

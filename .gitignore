@@ -35,7 +35,11 @@ creativos/**/*
 # --- DEPENDENCIAS Y RUIDO -----------------------------------
 node_modules/
 npm-debug.log*
-package-lock.json
+
+# package-lock.json SI va al repositorio. Es lo que hace que `npm install` en
+# otro equipo baje exactamente las mismas versiones que aqui, en vez de las
+# ultimas que haya ese dia. Sin el, el proyecto puede comportarse distinto en
+# cada computador y no habria forma de saber por que.
 
 # Archivos temporales de las pruebas
 _*.js
