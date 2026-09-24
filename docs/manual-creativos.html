@@ -1,0 +1,163 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Manual de entrega de creativos</title><link rel="stylesheet" href="estilo.css"></head><body>
+
+<div class="cabecera">
+  <div class="logo">CEL<em>RED</em></div>
+  <h1>Cómo entregar los creativos</h1>
+  <div class="sub">Manual para el equipo de diseño · Sistema de pauta automática de Meta Ads</div>
+</div>
+
+<p>Las campañas de Meta ya no se arman a mano: un sistema las crea automáticamente
+leyendo <strong>el nombre del archivo</strong> y <strong>la carpeta donde está</strong>.
+Si el nombre no dice de qué equipo es la pieza, el sistema <strong>no la usa</strong> —
+y no la adivina, a propósito: pautar un teléfono con la foto de otro es un error que
+llega al cliente.</p>
+
+<p>Este manual son tres reglas. Nada más.</p>
+
+<h2>Regla 1 · El nombre lleva la marca y el modelo</h2>
+
+<p>El sistema busca en el nombre del archivo una <strong>marca conocida</strong> seguida
+del <strong>modelo</strong>. Todo lo demás lo ignora: guiones, espacios, mayúsculas, el
+nombre de la sede, «final», «v2» o lo que quieras añadir.</p>
+
+<div class="si-no">
+  <div class="bien"><div class="tit">ASÍ SÍ</div><ul>
+    <li>tecnocamon50pro-neiva.png</li>
+    <li>tecno camon 50 pro neiva.png</li>
+    <li>TECNOCAMON50PRO-NEIVA.png</li>
+    <li>iphone15-victoria.jpg</li>
+    <li>iphone 15 pro max la16.jpg</li>
+    <li>redmi15-mocoa-v2-final.png</li>
+    <li>samsunga07-zafiro-credito.mp4</li>
+  </ul></div>
+  <div class="mal"><div class="tit">ASÍ NO</div><ul>
+    <li>camon50pro-neiva.png</li>
+    <li>android neiva.png</li>
+    <li>iphone orito.jpg</li>
+    <li>foto1.png</li>
+    <li>WhatsApp Image 2026-09-23.jpeg</li>
+    <li>pieza final OK.mp4</li>
+    <li>equipo nuevo.png</li>
+  </ul></div>
+</div>
+
+<div class="caja no"><b>Por qué fallan los de la derecha</b>
+<code>camon50pro</code> no lleva la marca: hay que escribir <code>tecnocamon50pro</code>.
+<code>android</code> e <code>iphone</code> a secas dicen la familia pero no el modelo, y el
+sistema no elige por ti cuál de los veinte Android es. El resto no dice nada.</div>
+
+<h3>Marcas que el sistema reconoce</h3>
+<p class="nota">Si la marca no está en esta lista, avisa antes de entregar: hay que añadirla al sistema.</p>
+<table>
+<tr><th>Android</th><th>Apple</th></tr>
+<tr><td>samsung · galaxy · xiaomi · redmi · poco · motorola · moto · tecno · infinix ·
+honor · huawei · oppo · realme · vivo · nokia · zte</td>
+<td>iphone · ipad · macbook · mac · apple watch · airpods</td></tr>
+</table>
+
+<h2>Regla 2 · Cada sede tiene su carpeta</h2>
+
+<p>La pieza va en la carpeta de <strong>su</strong> sede. La carpeta es lo que le dice al
+sistema a qué tienda pertenece, qué número de WhatsApp poner y qué dirección escribir en
+el anuncio.</p>
+
+<pre>creativos/
+  <span class="n">neiva</span>/       tecnocamon50pro-neiva.png
+                infinixhot60pro-neiva.mp4
+  <span class="n">mocoa</span>/       redmi15-mocoa.jpg
+  <span class="n">victoria</span>/    iphone15-victoria.png</pre>
+
+<table>
+<tr><th>Carpeta</th><th>Tienda</th><th>Ciudad</th><th>Carpeta</th><th>Tienda</th><th>Ciudad</th></tr>
+<tr><td><code>la16</code></td><td>La 16</td><td>Pasto</td><td><code>orito</code></td><td>Orito</td><td>Putumayo</td></tr>
+<tr><td><code>sebastian</code></td><td>CC Sebastián de Belalcázar</td><td>Pasto</td><td><code>hormiga</code></td><td>La Hormiga</td><td>Putumayo</td></tr>
+<tr><td><code>liceo</code></td><td>El Liceo</td><td>Pasto</td><td><code>ptoasis</code></td><td>Puerto Asís</td><td>Putumayo</td></tr>
+<tr><td><code>victoria</code></td><td>Victoria Plaza</td><td>Ipiales</td><td><code>mocoa</code></td><td>Mocoa</td><td>Putumayo</td></tr>
+<tr><td><code>zafiro</code></td><td>CC Zafiro</td><td>Ipiales</td><td><code>medellin</code></td><td>Medellín</td><td>Antioquia</td></tr>
+<tr><td><code>markus</code></td><td>Markus</td><td>Ipiales</td><td><code>neiva</code></td><td>Neiva</td><td>Huila</td></tr>
+<tr><td><code>tuquerres</code></td><td>Túquerres</td><td>Nariño</td><td colspan="3" class="nota">La Unión aún no abre: todavía no se le entregan piezas.</td></tr>
+</table>
+
+<div class="caja ojo"><b>La dirección impresa tiene que ser la de esa sede</b>
+Si la pieza lleva la dirección puesta en el arte, tiene que ser la de la tienda cuya
+carpeta la recibe. Una pieza de Mocoa en la carpeta de Neiva manda a los clientes de
+Neiva a otra ciudad. Si vas a reutilizar un arte en varias sedes, entrégalo
+<strong>sin dirección y sin teléfono</strong>: el sistema los pone solo, correctos, en el
+texto del anuncio.</div>
+
+<h2>Regla 3 · Formatos y pesos</h2>
+
+<table>
+<tr><th>Tipo</th><th>Extensiones que acepta</th><th class="c">Peso máximo</th><th>Se convierte en</th></tr>
+<tr><td>Imagen</td><td><code>.jpg .jpeg .png .gif .bmp .webp</code></td><td class="c">30 MB</td><td>anuncio <code>IMG</code></td></tr>
+<tr><td>Video</td><td><code>.mp4 .mov .avi .mkv .webm .m4v .3gp</code></td><td class="c">4 GB</td><td>anuncio <code>VID</code></td></tr>
+</table>
+
+<p><strong>El formato lo decide el archivo, no lo que digas.</strong> Si entregas foto y
+video del mismo equipo en la misma carpeta, el sistema crea <strong>dos anuncios</strong>,
+uno con cada pieza. Es la forma de que Meta compare cuál rinde mejor.</p>
+
+<p class="nota">Los videos de más de 50 MB se suben por partes automáticamente. No hace
+falta comprimirlos: tarda un poco más y ya está.</p>
+
+<h2 class="salto">Ejemplos completos de entrega</h2>
+
+<h3>Caso 1 · Un equipo Android, foto y video, para Neiva</h3>
+<pre>creativos/neiva/
+  <span class="v">tecnocamon50pro-neiva.png</span>     <span class="g">ADS1 | NEI | IMG | TECNO CAMON 50 PRO</span>
+  <span class="v">tecnocamon50pro-neiva.mp4</span>     <span class="g">ADS2 | NEI | VID | TECNO CAMON 50 PRO</span></pre>
+<p>Dos anuncios del mismo equipo, en el mismo conjunto. Correcto, y es lo ideal.</p>
+
+<h3>Caso 2 · Varios Android para la misma sede</h3>
+<pre>creativos/mocoa/
+  <span class="v">tecnocamon50pro-mocoa.png</span>
+  <span class="v">infinixhot60pro-mocoa.mp4</span>
+  <span class="v">redmi15-mocoa.jpg</span></pre>
+<p>Los tres entran en <strong>un solo conjunto</strong> de Android. El máximo son
+<strong>5 anuncios por conjunto</strong>; si entregas más, hay que repartirlos en varias
+campañas.</p>
+
+<h3>Caso 3 · iPhone y Android para la misma sede</h3>
+<pre>creativos/la16/
+  <span class="v">iphone15-la16.png</span>            <span class="g">conjunto de iPhone</span>
+  <span class="v">iphone13-la16.png</span>            <span class="g">conjunto de iPhone</span>
+  <span class="v">samsunga07-la16.mp4</span>          <span class="g">conjunto de Android</span></pre>
+<p>El sistema los separa solo: <strong>iPhone por un lado, Android por otro</strong>,
+porque son públicos y precios distintos. No hay que hacer nada especial al nombrarlos.</p>
+
+<h3>Caso 4 · Crédito y contado</h3>
+<p>Eso <strong>no se decide en el nombre del archivo</strong>: lo elige quien pide la
+campaña. Puedes escribir <code>credito</code> en el nombre si te ayuda a organizarte
+—el sistema lo ignora sin problema—, pero lo que de verdad cuenta es que la pieza sea
+coherente con lo que se va a pautar.</p>
+
+<div class="caja"><b>Si el arte dice algo concreto, avísalo al entregar</b>
+Si la pieza dice «LLÉVALO A CRÉDITO» o «INCLUSO SI ESTÁS REPORTADO», díselo a quien
+pauta. El texto del anuncio lo escribe el sistema y no ve la imagen: si el arte promete
+crédito y el texto habla de contado, el anuncio se contradice solo.</div>
+
+<h3>Caso 5 · Mac, iPad y accesorios</h3>
+<pre>creativos/medellin/
+  <span class="v">macbookair-medellin.png</span>
+  <span class="v">ipad10-medellin.jpg</span>
+  <span class="v">airpods-medellin.png</span></pre>
+
+<h2>Antes de entregar, revisa esto</h2>
+<ol>
+<li>¿El nombre lleva <strong>marca</strong> y <strong>modelo</strong>? <span class="nota">(«tecno» + «camon 50 pro», no solo «camon50pro»)</span></li>
+<li>¿Está en la <strong>carpeta de su sede</strong>?</li>
+<li>Si el arte lleva <strong>dirección o teléfono impresos</strong>, ¿son los de <em>esa</em> tienda?</li>
+<li>¿La extensión está en la lista de arriba?</li>
+<li>¿La imagen pesa menos de 30 MB?</li>
+<li>¿Hay como máximo <strong>5 piezas</strong> por familia y sede?</li>
+</ol>
+
+<div class="caja si"><b>Cómo saber si quedó bien, sin preguntar</b>
+Quien pauta puede listar, sede por sede, qué piezas reconoció el sistema y cuáles quedaron
+fuera por el nombre. Si una tuya aparece en «no reconocidas», sale con el nombre exacto del
+archivo. Pídeselo cuando entregues un lote grande.</div>
+
+<footer>CELRED · Manual de entrega de creativos · Las marcas, sedes, formatos y límites de
+este documento están tomados del propio sistema de pauta, no son orientativos.</footer>
+</body></html>

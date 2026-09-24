@@ -1,0 +1,164 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Cómo pedir una campaña</title><link rel="stylesheet" href="estilo.css"></head><body>
+
+<div class="cabecera">
+  <div class="logo">CEL<em>RED</em></div>
+  <h1>Cómo pedir una campaña</h1>
+  <div class="sub">Manual para quien usa el sistema de pauta · Meta Ads</div>
+</div>
+
+<p>El sistema crea campañas de Meta a partir de una frase escrita en español normal.
+No hay formularios que rellenar ni códigos que memorizar: se escribe lo que se quiere y
+el sistema lo interpreta, lo arma y <strong>lo muestra para aprobar antes de mandar nada
+a Meta</strong>.</p>
+
+<div class="caja si"><b>Nada se publica</b>
+Todo lo que crea el sistema queda en <strong>borrador (PAUSED)</strong>. No entrega
+impresiones, no gasta presupuesto y no lo ve ningún cliente hasta que alguien lo active
+a mano en Ads Manager. No hay forma de publicar en vivo desde el panel.</div>
+
+<h2>Lo mínimo que hay que decir</h2>
+
+<table>
+<tr><th>Dato</th><th class="c">¿Obligatorio?</th><th>Si no lo dices</th></tr>
+<tr><td><strong>La sede</strong></td><td class="c">SÍ</td><td>No arma nada. Es lo único sin lo que no puede seguir.</td></tr>
+<tr><td><strong>Los equipos</strong></td><td class="c">SÍ</td><td>No arma nada, salvo que digas «de android» o «de iphone», y entonces toma todos los de esa familia que encuentre en la carpeta.</td></tr>
+<tr><td>Presupuesto diario</td><td class="c">no</td><td>Usa <strong>$25.000</strong> por conjunto y lo avisa. Se cambia en la etapa 2.</td></tr>
+<tr><td>Crédito o contado</td><td class="c">no</td><td>Asume <strong>crédito</strong> y lo avisa, porque permite hablar de las dos formas de pago.</td></tr>
+<tr><td>Objetivo</td><td class="c">no</td><td>Usa <strong>Mensajes a WhatsApp</strong>, que es el 99 % de lo que se pauta.</td></tr>
+</table>
+
+<p>O sea: <strong>sede y equipos</strong>. El resto tiene un valor por defecto razonable
+que el sistema te dice en pantalla, y que puedes cambiar antes de aprobar.</p>
+
+<h2>Ejemplos de pedidos que funcionan</h2>
+
+<h3>Lo más corto que se puede pedir</h3>
+<pre><span class="v">campaña para neiva de android</span>
+
+<span class="g">sede: NEIVA · toma todos los Android de creativos/neiva/
+$25.000/día · a crédito · Mensajes a WhatsApp</span></pre>
+
+<h3>Diciendo los equipos uno por uno</h3>
+<pre><span class="v">campaña para la victoria con redmi 15, samsung a07 y iphone 13</span>
+
+<span class="g">Separa solo: los dos Android en un conjunto, el iPhone en otro.</span></pre>
+
+<h3>Con presupuesto y forma de pago</h3>
+<pre><span class="v">campaña para mocoa de android a crédito con 30 mil diarios</span></pre>
+
+<h3>Los modelos se pueden escribir como sea</h3>
+<pre><span class="v">campaña para la sede la 16 con el iphone15</span>          <span class="g">pegado</span>
+<span class="v">campaña para la 16 con el iphone 15</span>               <span class="g">separado</span>
+<span class="v">campaña para la16 con infinixhot60pro</span>            <span class="g">todo junto</span></pre>
+
+<h3>Solo una familia</h3>
+<pre><span class="v">campaña para neiva de iphone</span>
+<span class="v">campaña para mocoa de android</span>
+
+<span class="g">Barre la carpeta de la sede y toma todos los de esa familia.
+Avisa cuáles tomó y cuáles quedaron fuera por el nombre del archivo.</span></pre>
+
+<h2>Lo que el sistema decide solo</h2>
+
+<p>Estas cosas <strong>no se piden y no se pueden cambiar</strong>: salen de los datos de
+la empresa, no de la orden.</p>
+
+<table>
+<tr><th>Qué</th><th>De dónde sale</th></tr>
+<tr><td>El número de WhatsApp</td><td>Del archivo de líneas, según la sede. <strong>Uno distinto por tienda.</strong></td></tr>
+<tr><td>La cuenta publicitaria</td><td>De la sede: cada tienda está en CA 01 o en CA 02.</td></tr>
+<tr><td>La dirección del anuncio</td><td>De la lista oficial de direcciones de cada tienda.</td></tr>
+<tr><td>El nombre de la campaña</td><td><code>C# | SEDE | DDMMAA</code>, con el consecutivo leído de Ads Manager.</td></tr>
+<tr><td>El formato de cada anuncio</td><td>Del archivo: foto da <code>IMG</code>, video da <code>VID</code>.</td></tr>
+<tr><td>Los textos del anuncio</td><td>Los escribe el sistema: 5 textos, 5 títulos y 5 descripciones por anuncio.</td></tr>
+<tr><td>La ciudad y el radio</td><td>De la ficha de la sede. Se puede ajustar el radio en la etapa 2.</td></tr>
+</table>
+
+<h2 class="salto">Lo que NO se acepta en una orden</h2>
+
+<div class="si-no">
+  <div class="mal"><div class="tit">PEDIDOS QUE EL SISTEMA RECHAZA</div><ul style="font-family:inherit;font-size:9.5pt">
+    <li>«campaña de android» <span class="nota">sin sede</span></li>
+    <li>«campaña para neiva» <span class="nota">sin equipos</span></li>
+    <li>«campaña para bogotá» <span class="nota">sede que no existe</span></li>
+    <li>«campaña para la unión» <span class="nota">aún no abre</span></li>
+    <li>«con 5 mil diarios» <span class="nota">fuera de rango</span></li>
+    <li>«que salga publicada ya» <span class="nota">solo borrador</span></li>
+  </ul></div>
+  <div class="bien"><div class="tit">QUÉ HACER EN CADA CASO</div><ul style="font-family:inherit;font-size:9.5pt">
+    <li>Añade la sede</li>
+    <li>Añade los equipos o di «de android»</li>
+    <li>Usa una de las 13 tiendas</li>
+    <li>Espera a que abra</li>
+    <li>Entre $15.000 y $60.000</li>
+    <li>Se activa a mano en Ads Manager</li>
+  </ul></div>
+</div>
+
+<h3>Los límites que el sistema no se salta</h3>
+<table>
+<tr><th>Regla</th><th>Límite</th><th>Qué pasa si te pasas</th></tr>
+<tr><td>Presupuesto de sede (venta)</td><td>$15.000 a $60.000 al día</td><td>Lo rechaza y lo dice</td></tr>
+<tr><td>Presupuesto regional</td><td>$20.000 a $50.000 al día</td><td>Lo rechaza y lo dice</td></tr>
+<tr><td>Anuncios por conjunto</td><td>máximo 5</td><td>Lo rechaza y lo dice</td></tr>
+<tr><td>Estado al crear</td><td>siempre borrador</td><td>No se puede pedir en vivo</td></tr>
+<tr><td>Pieza de otra sede</td><td>prohibido</td><td>Lo rechaza, salvo permiso expreso</td></tr>
+</table>
+
+<div class="caja ojo"><b>Si pides un equipo sin pieza, te lo dice</b>
+Si escribes «campaña para la victoria con iphone 15» y en <code>creativos/victoria/</code>
+no hay ninguna pieza de ese modelo, el sistema <strong>no inventa nada</strong>: te dice
+qué falta y dónde ponerlo. No crea un anuncio a medias.</div>
+
+<h2>Cómo se aprueba, paso a paso</h2>
+
+<p>Después de interpretar la orden, el sistema enseña la campaña en cuatro pantallas.
+En cada una se puede <strong>aprobar, editar o cancelar</strong>. Nada llega a Meta hasta
+la cuarta.</p>
+
+<table>
+<tr><th class="c">Etapa</th><th>Qué se revisa</th><th>Qué se puede cambiar ahí</th></tr>
+<tr><td class="c"><strong>1</strong></td><td>La campaña</td><td>Objetivo, nombre, reparto de presupuesto</td></tr>
+<tr><td class="c"><strong>2</strong></td><td>El conjunto</td><td>Presupuesto, edades, radio, ubicaciones, dispositivos</td></tr>
+<tr><td class="c"><strong>3</strong></td><td>Los anuncios</td><td>Los 5 textos, los 5 títulos, las 5 descripciones, el talento</td></tr>
+<tr><td class="c"><strong>4</strong></td><td>Resumen final</td><td>Solo confirmar o volver atrás</td></tr>
+</table>
+
+<p>Cualquier cambio <strong>recalcula todo y borra las aprobaciones</strong> de esa etapa
+en adelante. No se puede aprobar una pantalla y que se cree otra cosa.</p>
+
+<div class="caja si"><b>Antes de crear, el sistema le pregunta a Meta</b>
+Antes de tocar nada, manda los parámetros a Meta con una validación que <em>no crea</em>.
+Si Meta dice que no, el panel se detiene y <strong>no queda nada a medias</strong> en Ads
+Manager. Cuando termina, te da enlaces directos para ir a ver la campaña, el conjunto y
+los anuncios ya creados, y vuelve a leer de Meta para confirmar que quedó como lo
+aprobaste.</div>
+
+<h2>Cómo queda nombrado</h2>
+
+<pre>CAMPAÑA   <span class="n">C4 | NEIVA | 240926</span>
+            <span class="g">consecutivo | sede | fecha</span>
+
+CONJUNTO    <span class="n">C4 | NEI | CJTO1 | AND-CRED | TEST</span>
+            <span class="g">consecutivo | distintivo | nº | segmento | prueba</span>
+
+ANUNCIOS      <span class="n">ADS1 | NEI | IMG | TECNO CAMON 50 PRO</span>
+              <span class="n">ADS2 | NEI | VID | INFINIX HOT 60 PRO</span>
+              <span class="g">nº | distintivo | formato | equipo</span></pre>
+
+<table>
+<tr><th>Segmento</th><th>Qué es</th><th>Segmento</th><th>Qué es</th></tr>
+<tr><td><code>IPH-CONT</code></td><td>iPhone de contado</td><td><code>MIXTO</code></td><td>iPhone y Android juntos</td></tr>
+<tr><td><code>IPH-CRED</code></td><td>iPhone a crédito</td><td><code>MAC-IPAD</code></td><td>Mac, iPad y accesorios</td></tr>
+<tr><td><code>AND-CONT</code></td><td>Android de contado</td><td><code>RETOMA</code></td><td>Plan retoma y open box</td></tr>
+<tr><td><code>AND-CRED</code></td><td>Android a crédito</td><td colspan="2" class="nota">Los elige el sistema según los equipos y la forma de pago.</td></tr>
+</table>
+
+<h2>Resumen en una línea</h2>
+<div class="caja"><b>Di la tienda y los equipos. Revisa las cuatro pantallas. Aprueba.</b>
+Todo lo demás lo pone el sistema, y todo sale en borrador.</div>
+
+<footer>CELRED · Manual de pedidos de campaña · Los límites, segmentos y valores por
+defecto de este documento son los que el sistema aplica de verdad.</footer>
+</body></html>
