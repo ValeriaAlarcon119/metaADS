@@ -45,6 +45,10 @@ npm-debug.log*
 _*.js
 vista-previa-panel.html
 
+# ...pero la plantilla de campana SI va: es de donde se copia para crear una
+# campana nueva, y sin ella un clon recien hecho ni siquiera compila.
+!campanas/_plantilla.js
+
 # Sistema operativo
 Thumbs.db
 desktop.ini
