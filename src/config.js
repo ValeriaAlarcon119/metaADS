@@ -254,7 +254,16 @@ const _cuentas = new Map();
 export function adAccountDe(idCuenta) {
   const id = String(idCuenta || '').trim();
   if (!id) throw new Error('config: falta el id de la cuenta publicitaria.');
-  if (!_cuentas.has(id)) _cuentas.set(id, new AdAccount(id));
+
+  // El SDK ata la conexion al objeto EN EL MOMENTO de construirlo. Si se
+  // construia antes de iniciar el SDK (un plan sin conexion en el panel), la
+  // copia quedaba en cache sin conexion y la siguiente creacion real fallaba
+  // con "AdAccount does not yet have an associated api object". Por eso se
+  // inicia el SDK antes, cuando hay token, y solo se cachea con conexion.
+  const api = ACCESS_TOKEN ? inicializarApi() : null;
+  if (!api) return new AdAccount(id);
+
+  if (!_cuentas.has(id)) _cuentas.set(id, new AdAccount(id, undefined, undefined, api));
   return _cuentas.get(id);
 }
  
