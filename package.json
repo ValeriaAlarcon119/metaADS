@@ -19,9 +19,10 @@
     "lineas": "node herramientas/ver-lineas.js",
     "creativos": "node herramientas/ver-creativos.js",
     "carpetas": "node herramientas/ver-creativos.js --crear-carpetas",
-    "check": "node --check src/config.js && node --check src/nomenclatura.js && node --check src/lineas.js && node --check src/tracker.js && node --check src/creatives.js && node --check src/creativos-sede.js && node --check src/targeting.js && node --check src/objetivos.js && node --check src/direcciones.js && node --check src/copys.js && node --check src/interprete.js && node --check src/campanas.js && node --check src/ajustes.js && node --check src/ensayo.js && node --check src/builder.js && node --check campanas/_plantilla.js && node --check test-run.js && node --check servidor.js && node --check panel/app.js && node --check herramientas/ver-lineas.js && node --check herramientas/ver-creativos.js && node --check herramientas/ver-cuentas.js && node --check herramientas/alargar-token.js && node --check herramientas/validar-en-meta.js && node --check herramientas/probar-interprete.js && node --check herramientas/ver-contraste.js && node --check herramientas/pruebas.js",
+    "check": "node --check src/config.js && node --check src/nomenclatura.js && node --check src/lineas.js && node --check src/tracker.js && node --check src/creatives.js && node --check src/creativos-sede.js && node --check src/targeting.js && node --check src/objetivos.js && node --check src/direcciones.js && node --check src/copys.js && node --check src/interprete.js && node --check src/campanas.js && node --check src/ajustes.js && node --check src/ensayo.js && node --check src/builder.js && node --check campanas/_plantilla.js && node --check test-run.js && node --check servidor.js && node --check panel/app.js && node --check herramientas/ver-lineas.js && node --check herramientas/ver-creativos.js && node --check herramientas/ver-cuentas.js && node --check herramientas/alargar-token.js && node --check herramientas/validar-en-meta.js && node --check herramientas/probar-interprete.js && node --check herramientas/ver-contraste.js && node --check herramientas/pruebas.js && node --check herramientas/revisar-sedes.js",
     "test": "node herramientas/pruebas.js",
-    "contraste": "node herramientas/ver-contraste.js panel/estilos.css"
+    "contraste": "node herramientas/ver-contraste.js panel/estilos.css",
+    "revisar-sedes": "node herramientas/revisar-sedes.js"
   },
   "dependencies": {
     "axios": "^1.20.0",

@@ -105,17 +105,29 @@ export const MEJORAS_NUCLEO = Object.freeze([
  * el escalon siguiente manda solo `MEJORAS_NUCLEO` — nunca se baja el numero
  * de textos por esto.
  */
+//
+// Lista comprobada contra la API v24 el 24/09/2026, nombre por nombre. Se
+// quitaron catalog_feed_tags, music, 3d_animation, image_generation y
+// background_generation: Meta ya no los reconoce y rechaza el creativo
+// ENTERO si llega uno. Se anadieron los que Ads Manager apaga en los anuncios
+// hechos a mano de CA 01 y CA 02.
 export const MEJORAS_EXTRA = Object.freeze([
   'site_extensions',
   'product_extensions',
-  'catalog_feed_tags',
-  'music',
-  '3d_animation',
   'text_generation',
-  'image_generation',
-  'background_generation',
   'description_automation',
   'cv_transformation',
+  'advantage_plus_creative',
+  'image_animation',
+  'show_destination_blurbs',
+  'text_translation',
+  'ads_with_benefits',
+  'creative_stickers',
+  'ig_video_native_subtitle',
+  'translate_voiceover',
+  'video_filtering',
+  'video_uncrop',
+  'product_browsing',
 ]);
 
 /** Todas las que se apagan, en el intento mas completo. */
@@ -626,8 +638,10 @@ export function armarParamsAdCreative({
   mejoras = 'completo',
   bienvenidaComoObjeto = false,
   cta = CTA_WHATSAPP,
+  paginaId = PAGE_ID,
+  instagramId = INSTAGRAM_USER_ID,
 }) {
-  if (!PAGE_ID) throw new Error('creatives: falta META_PAGE_ID en el .env (obligatorio para WhatsApp).');
+  if (!paginaId) throw new Error('creatives: falta META_PAGE_ID en el .env (obligatorio para WhatsApp).');
   if (!asset) throw new Error('creatives: falta el asset subido.');
 
   if (CTA_PROHIBIDOS.has(cta)) {
@@ -658,9 +672,9 @@ export function armarParamsAdCreative({
   const dof = mejorasAutomaticas({ modoTexto, nivel: mejoras });
   if (dof) base.degrees_of_freedom_spec = dof;
 
-  const object_story_spec = { page_id: PAGE_ID };
+  const object_story_spec = { page_id: paginaId || PAGE_ID };
   // instagram_actor_id quedo deprecado el 9 de septiembre de 2025.
-  if (INSTAGRAM_USER_ID) object_story_spec.instagram_user_id = INSTAGRAM_USER_ID;
+  if (instagramId) object_story_spec.instagram_user_id = instagramId;
 
   /* --- Modo simple: un solo texto, un solo titulo, una descripcion -------- */
   if (modoTexto === 'simple') {
@@ -690,31 +704,37 @@ export function armarParamsAdCreative({
   }
 
   /* --- Modo multiple: las 5 opciones de cada campo ----------------------- */
-  // Limites oficiales: 5 bodies, 5 titles, 5 descriptions, 1 ad_format,
-  // 5 link_urls, 5 CTA y 30 assets en total. Aqui van 15.
+  // Es la forma exacta que deja Ads Manager al poner varias opciones de texto
+  // en un anuncio de WhatsApp (releida de anuncios hechos a mano en CA 01 y
+  // CA 02): la pieza, el boton y el mensaje de bienvenida van en
+  // object_story_spec, y asset_feed_spec lleva SOLO los textos.
+  //
+  // Antes se repetia la pieza dentro de asset_feed_spec (images/videos,
+  // link_urls, ad_formats) y el video se colgaba de link_data. Meta lo
+  // rechazaba con "object_story_spec no es valido" (subcodigo 1443048).
   const asset_feed_spec = {
     bodies: cuerpos.map((text) => ({ text })),
     titles: encabezados.map((text) => ({ text })),
     descriptions: descripcionesOk.map((text) => ({ text })),
-    link_urls: [{ website_url: ENLACE_WHATSAPP }],
-    call_to_action_types: [CTA_WHATSAPP],
-    ad_formats: [asset.tipo === 'imagen' ? 'SINGLE_IMAGE' : 'SINGLE_VIDEO'],
+    optimization_type: 'DEGREES_OF_FREEDOM',
   };
 
   if (asset.tipo === 'imagen') {
-    asset_feed_spec.images = [{ hash: asset.hash }];
+    object_story_spec.link_data = {
+      link: ENLACE_WHATSAPP,
+      image_hash: asset.hash,
+      page_welcome_message: bienvenida,
+      call_to_action: accion,
+    };
   } else {
-    asset_feed_spec.videos = [{ video_id: asset.videoId, thumbnail_url: asset.miniaturaUrl }];
+    // video_data no tiene campo `link`: el enlace viaja dentro del CTA.
+    object_story_spec.video_data = {
+      video_id: asset.videoId,
+      image_url: asset.miniaturaUrl,
+      page_welcome_message: bienvenida,
+      call_to_action: { ...accion, value: { ...accion.value, link: ENLACE_WHATSAPP } },
+    };
   }
-
-  // El mensaje prellenado no tiene sitio dentro de asset_feed_spec, asi que
-  // viaja igual por link_data, que es donde Meta lo lee.
-  object_story_spec.link_data = {
-    link: ENLACE_WHATSAPP,
-    page_welcome_message: bienvenida,
-    call_to_action: accion,
-  };
-  if (asset.tipo === 'imagen') object_story_spec.link_data.image_hash = asset.hash;
 
   return { ...base, object_story_spec, asset_feed_spec };
 }
@@ -765,21 +785,27 @@ export const QUE_HACE_CADA_MEJORA = Object.freeze({
   image_touchups: { grupo: 'imagen', que: 'Retoca la foto: recorta, endereza y cambia la proporcion' },
   image_brightness_and_contrast: { grupo: 'imagen', que: 'Sube el brillo y el contraste de la foto' },
   image_templates: { grupo: 'imagen', que: 'Le pega texto y adornos encima a la foto' },
-  image_generation: { grupo: 'imagen', que: 'Genera imagenes nuevas con inteligencia artificial' },
-  background_generation: { grupo: 'imagen', que: 'Inventa un fondo nuevo detras del producto' },
   cv_transformation: { grupo: 'imagen', que: 'Reencuadra la imagen analizando lo que hay dentro' },
+  image_animation: { grupo: 'imagen', que: 'Anima la foto con movimiento' },
+  advantage_plus_creative: { grupo: 'imagen', que: 'Paquete Advantage+ de creativo' },
   video_auto_crop: { grupo: 'video', que: 'Recorta el video solo para cada ubicacion' },
+  video_uncrop: { grupo: 'video', que: 'Amplia el video inventando los bordes' },
+  video_filtering: { grupo: 'video', que: 'Le aplica filtros al video' },
   media_liquidity_animated_image: { grupo: 'video', que: 'Convierte la foto en una animacion' },
-  music: { grupo: 'video', que: 'Le pone musica de fondo al anuncio' },
-  '3d_animation': { grupo: 'video', que: 'Le da efecto de movimiento 3D a la imagen' },
+  ig_video_native_subtitle: { grupo: 'video', que: 'Le pone subtitulos automaticos al video en Instagram' },
+  translate_voiceover: { grupo: 'video', que: 'Dobla la voz del video a otro idioma' },
   text_generation: { grupo: 'texto', que: 'Escribe textos nuevos que nadie ha revisado' },
   description_automation: { grupo: 'texto', que: 'Genera la descripcion sola' },
+  text_translation: { grupo: 'texto', que: 'Traduce los textos a otros idiomas' },
   enhance_cta: { grupo: 'texto', que: 'Cambia el texto del boton por otro que Meta crea mejor' },
   adapt_to_placement: { grupo: 'formato', que: 'Reordena el anuncio segun donde se muestre' },
   profile_card: { grupo: 'formato', que: 'Añade una tarjeta con el perfil de la Pagina' },
   site_extensions: { grupo: 'formato', que: 'Añade enlaces extra a otras partes del sitio' },
   product_extensions: { grupo: 'formato', que: 'Añade productos del catalogo al anuncio' },
-  catalog_feed_tags: { grupo: 'formato', que: 'Pone etiquetas del catalogo encima (precio, envio)' },
+  product_browsing: { grupo: 'formato', que: 'Deja explorar productos del catalogo desde el anuncio' },
+  show_destination_blurbs: { grupo: 'formato', que: 'Añade resumenes del destino debajo del anuncio' },
+  ads_with_benefits: { grupo: 'formato', que: 'Añade beneficios u ofertas que Meta detecta' },
+  creative_stickers: { grupo: 'formato', que: 'Pega stickers encima del anuncio' },
   inline_comment: { grupo: 'formato', que: 'Escribe comentarios automaticos debajo del anuncio' },
 });
 
@@ -1054,6 +1080,9 @@ function esRechazoDeFormato(error) {
   const meta = error?.metaError;
   if (!meta) return false;
   if ([190, 102, 10, 200, 17, 4, 80004].includes(Number(meta.code))) return false;
+  // La app del token esta en modo de desarrollo: ningun envoltorio lo arregla,
+  // hay que pasarla a modo publico en developers.facebook.com.
+  if (Number(meta.error_subcode) === 1885183) return false;
 
   const texto = `${meta.message || ''} ${meta.error_user_msg || ''} ${meta.error_user_title || ''}`.toLowerCase();
 

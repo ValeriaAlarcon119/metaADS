@@ -556,7 +556,12 @@ export function construirTargeting(sedeKey, opciones = {}) {
     targeting.facebook_positions = ['feed', 'story', 'facebook_reels', 'profile_feed', 'marketplace'];
   }
   if (plataformas.includes('instagram')) {
-    targeting.instagram_positions = ['stream', 'story', 'reels', 'explore', 'profile_feed'];
+    // 'explore' lo retiro Meta: la API v24 lo rechaza con
+    //   "La ubicacion de la seccion Explorar de Instagram quedo obsoleta"
+    //   (codigo 100, subcodigo 2490589)
+    // Es el mismo caso que targeting_optimization: Meta la quito y no hay
+    // forma de seguir pidiendola. Se deja anotado para que nadie la reponga.
+    targeting.instagram_positions = ['stream', 'story', 'reels', 'profile_feed'];
   }
   if (plataformas.includes('whatsapp')) {
     targeting.whatsapp_positions = ['status'];

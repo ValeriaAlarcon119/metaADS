@@ -29,6 +29,9 @@ import {
   ESTADO_OBLIGATORIO,
   ESTADOS_VALIDOS,
   PAGE_ID,
+  paginaDeSede,
+  instagramDeSede,
+  factorMoneda,
   WHATSAPP_NUMBER,
   RUTA_LINEAS_XLSX,
   obtenerInfoCuenta,
@@ -304,7 +307,7 @@ export async function planificarEstructura(cfg) {
         timezone_name: simulado.husoHorario || 'America/Bogota',
         account_status: 1,
         min_daily_budget: simulado.minimoDiario ?? 0,
-        factor: 100,
+        factor: factorMoneda(simulado.moneda || 'COP'),
       }
     : await obtenerInfoCuenta(cuentaSede.id);
 
@@ -631,6 +634,10 @@ export async function planificarEstructura(cfg) {
     // y por que, que es lo que hay que enseñar antes de crear nada.
     cuenta: { ...cuenta, ...cuentaSede },
     whatsapp,
+    /** Pagina de Facebook donde esta vinculado el WhatsApp de la sede. */
+    paginaId: paginaDeSede(ficha.codigo),
+    /** Cuenta de Instagram con la que sale el anuncio ('' = la de la pagina). */
+    instagramId: instagramDeSede(ficha.codigo),
 
     /** El objetivo elegido, con su explicacion. */
     objetivo: {
@@ -764,7 +771,7 @@ export function paramsDeConjunto(plan, campaignId, estado = ESTADO_OBLIGATORIO, 
         // Pagina, e ignora cualquier ?phone= que traiga el enlace.
         [AdSet.Fields.promoted_object]: plan.whatsapp.telefono
           ? {
-              page_id: PAGE_ID,
+              page_id: plan.paginaId || PAGE_ID,
               whatsapp_phone_number: normalizarNumeroWhatsApp(plan.whatsapp.telefono),
             }
           : undefined,
@@ -823,7 +830,81 @@ export async function crearEstructuraCampana(plan, opciones = {}) {
   };
 
   try {
-    /* ---------------------- 1. CAMPANA ---------------------------------- */
+    /* --------------- 1. PIEZAS Y CREATIVOS, ANTES QUE NADA -------------- */
+    // El creativo es lo que Meta rechaza mas a menudo (formato, mejoras, app
+    // en modo de desarrollo) y el validate_only del ensayo no lo cubre. Un
+    // creativo suelto no aparece en Ads Manager ni gasta, asi que se crea
+    // primero: si falla, no queda ninguna campana ni conjunto a medias.
+    const preparados = new Map();
+
+    for (const conjunto of plan.conjuntos) {
+      const lista = [];
+      preparados.set(conjunto.indice, lista);
+
+      for (const anuncio of conjunto.anuncios) {
+        const registro = {
+          numero: anuncio.numero,
+          conjunto: conjunto.indice,
+          conjuntoNombre: conjunto.nombre,
+          nombre: anuncio.nombre,
+          creativeId: null,
+          adId: null,
+          modoTexto: null,
+          escalon: null,
+          mejorasSinDeclarar: false,
+          rechazos: [],
+        };
+        creados.anuncios.push(registro);
+
+        log('asset:inicio', { anuncio: anuncio.nombre, archivo: anuncio.archivo.nombre });
+        const asset = await subirCreativoLocal(anuncio.archivo.ruta, {
+          idCuenta: plan.cuenta.id,
+          onPaso: (paso, detalle) => log(`asset:${paso}`, { anuncio: anuncio.nombre, ...detalle }),
+        });
+        log('asset:ok', { anuncio: anuncio.nombre, id: asset.hash || asset.videoId });
+
+        log('creative:inicio', anuncio.nombreCreativo);
+        const creative = await construirAdCreative(
+          {
+            nombre: anuncio.nombreCreativo,
+            textosPrincipales: anuncio.copy.textosPrincipales,
+            titulos: anuncio.copy.titulos,
+            descripciones: anuncio.copy.descripciones,
+            mensajePrellenado: anuncio.copy.mensajePrellenado,
+            saludoWhatsApp: anuncio.copy.saludoWhatsApp,
+            asset,
+            modoTexto: anuncio.modoTexto,
+            idCuenta: plan.cuenta.id,
+            paginaId: plan.paginaId,
+            instagramId: plan.instagramId,
+          },
+          { onPaso: (paso, detalle) => log(paso, { anuncio: anuncio.nombre, ...detalle }) },
+        );
+        registro.creativeId = creative.id;
+        registro.modoTexto = creative.modoTexto;
+        registro.escalon = creative.escalon;
+        registro.mejorasSinDeclarar = creative.mejorasSinDeclarar;
+        registro.rechazos = creative.rechazos;
+        log('creative:ok', {
+          anuncio: anuncio.nombre,
+          id: creative.id,
+          modoTexto: creative.modoTexto,
+          escalon: creative.escalon,
+        });
+        if (creative.mejorasSinDeclarar) {
+          log('creative:sin-declarar', {
+            anuncio: anuncio.nombre,
+            motivo:
+              'Meta rechazo la declaracion de mejoras apagadas, asi que el creativo se creo sin ella. ' +
+              'Los 5 textos si quedaron. Confirma en Ads Manager que las mejoras automaticas estan en off.',
+          });
+        }
+
+        lista.push({ anuncio, registro });
+      }
+    }
+
+    /* ---------------------- 2. CAMPANA ---------------------------------- */
     if (plan.campana.crear) {
       log('campana:inicio', plan.campana.nombre);
 
@@ -839,7 +920,7 @@ export async function crearEstructuraCampana(plan, opciones = {}) {
       log('campana:reutilizada', creados.campaignId);
     }
 
-    /* -------------- 2 y 3. CONJUNTOS Y SUS ANUNCIOS --------------------- */
+    /* -------------- 3 y 4. CONJUNTOS Y SUS ANUNCIOS --------------------- */
     // Conjunto a conjunto, y dentro de cada uno anuncio a anuncio, en orden.
     // Asi CJTO1 queda antes que CJTO2 y ADS1 antes que ADS2, y si algo falla
     // se puede decir exactamente en cual se quedo.
@@ -864,80 +945,25 @@ export async function crearEstructuraCampana(plan, opciones = {}) {
       creados.parcial = true;
       log('adset:ok', { id: registroConjunto.adSetId, nombre: conjunto.nombre });
 
-      for (const anuncio of conjunto.anuncios) {
-      const registro = {
-        numero: anuncio.numero,
-        conjunto: conjunto.indice,
-        conjuntoNombre: conjunto.nombre,
-        nombre: anuncio.nombre,
-        creativeId: null,
-        adId: null,
-        modoTexto: null,
-        escalon: null,
-        mejorasSinDeclarar: false,
-        rechazos: [],
-      };
-      creados.anuncios.push(registro);
-      registroConjunto.anuncios.push(registro);
+      for (const { anuncio, registro } of preparados.get(conjunto.indice)) {
+        registroConjunto.anuncios.push(registro);
 
-      log('asset:inicio', { anuncio: anuncio.nombre, archivo: anuncio.archivo.nombre });
-      const asset = await subirCreativoLocal(anuncio.archivo.ruta, {
-        idCuenta: plan.cuenta.id,
-        onPaso: (paso, detalle) => log(`asset:${paso}`, { anuncio: anuncio.nombre, ...detalle }),
-      });
-      log('asset:ok', { anuncio: anuncio.nombre, id: asset.hash || asset.videoId });
+        log('ad:inicio', anuncio.nombre);
+        const paramsAd = forzarEstado(
+          {
+            [Ad.Fields.name]: anuncio.nombre,
+            [Ad.Fields.adset_id]: registroConjunto.adSetId,
+            [Ad.Fields.creative]: { creative_id: registro.creativeId },
+          },
+          estado,
+        );
 
-      log('creative:inicio', anuncio.nombreCreativo);
-      const creative = await construirAdCreative(
-        {
-          nombre: anuncio.nombreCreativo,
-          textosPrincipales: anuncio.copy.textosPrincipales,
-          titulos: anuncio.copy.titulos,
-          descripciones: anuncio.copy.descripciones,
-          mensajePrellenado: anuncio.copy.mensajePrellenado,
-          saludoWhatsApp: anuncio.copy.saludoWhatsApp,
-          asset,
-          modoTexto: anuncio.modoTexto,
-          idCuenta: plan.cuenta.id,
-        },
-        { onPaso: (paso, detalle) => log(paso, { anuncio: anuncio.nombre, ...detalle }) },
-      );
-      registro.creativeId = creative.id;
-      registro.modoTexto = creative.modoTexto;
-      registro.escalon = creative.escalon;
-      registro.mejorasSinDeclarar = creative.mejorasSinDeclarar;
-      registro.rechazos = creative.rechazos;
-      log('creative:ok', {
-        anuncio: anuncio.nombre,
-        id: creative.id,
-        modoTexto: creative.modoTexto,
-        escalon: creative.escalon,
-      });
-      if (creative.mejorasSinDeclarar) {
-        log('creative:sin-declarar', {
-          anuncio: anuncio.nombre,
-          motivo:
-            'Meta rechazo la declaracion de mejoras apagadas, asi que el creativo se creo sin ella. ' +
-            'Los 5 textos si quedaron. Confirma en Ads Manager que las mejoras automaticas estan en off.',
-        });
-      }
-
-      log('ad:inicio', anuncio.nombre);
-      const paramsAd = forzarEstado(
-        {
-          [Ad.Fields.name]: anuncio.nombre,
-          [Ad.Fields.adset_id]: registroConjunto.adSetId,
-          [Ad.Fields.creative]: { creative_id: creative.id },
-        },
-        estado,
-      );
-
-      const creado = await adAccountDe(plan.cuenta.id).createAd(
-        [Ad.Fields.id, Ad.Fields.name, Ad.Fields.status],
-        limpiar(paramsAd),
-      );
-      registro.adId = creado.id || creado._data?.id;
-      log('ad:ok', { anuncio: anuncio.nombre, id: registro.adId });
+        const creado = await adAccountDe(plan.cuenta.id).createAd(
+          [Ad.Fields.id, Ad.Fields.name, Ad.Fields.status],
+          limpiar(paramsAd),
+        );
+        registro.adId = creado.id || creado._data?.id;
+        log('ad:ok', { anuncio: anuncio.nombre, id: registro.adId });
       }
     }
 

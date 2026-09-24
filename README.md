@@ -13,42 +13,164 @@ hacen exactamente lo mismo y pasan por las mismas validaciones.
 
 ## Instalar en un equipo nuevo
 
-```bash
-git clone https://github.com/ValeriaAlarcon119/metaADS.git
-cd metaADS
-npm install
+Versiones con las que el proyecto está probado:
+
+| Programa | Versión | Para qué |
+|---|---|---|
+| **Node.js** | **22.21.0** (serie 22 LTS) | Ejecuta el sistema. Trae **npm 10.9.4** incluido |
+| **Git** | 2.4x o más nueva | Descarga el proyecto y sus actualizaciones |
+
+Las librerías (axios 1.20.0, dotenv 16.6.1, facebook-nodejs-business-sdk 24.0.1,
+form-data 4.0.6) no se instalan a mano: quedan fijadas en `package-lock.json`.
+
+Todo lo que sigue se escribe en **PowerShell** (tecla Windows → escribir
+"PowerShell" → abrir). Copia **una línea a la vez**.
+
+### Paso 1 · Instalar Node.js y Git (solo la primera vez)
+
+```powershell
+winget install -e --id OpenJS.NodeJS.LTS --version 22.21.0
+winget install -e --id Git.Git
 ```
 
+- Si pregunta si aceptas los términos, escribe **S** (o **Y**) y Enter.
+- Si Windows pide permiso de administrador, dale **Sí**.
+- Si el primer comando no encuentra esa versión, descarga el instalador y dale
+  Siguiente → Siguiente → Instalar:
+  https://nodejs.org/dist/v22.21.0/node-v22.21.0-x64.msi
+
+### Paso 2 · Cerrar PowerShell y abrirlo de nuevo
+
+Es obligatorio: sin esto, Windows sigue diciendo que *"npm no se reconoce"*.
+
+### Paso 3 · Comprobar que quedó instalado
+
+```powershell
+node -v
+npm -v
+git --version
+```
+
+Debe salir **v22.21.0**, **10.9.4** y una versión de git.
+
+Si `npm -v` da un error rojo que dice *"la ejecución de scripts está
+deshabilitada"*, pega esto, responde **S** y repite `npm -v`:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+### Paso 4 · Descargar el proyecto en el escritorio
+
+```powershell
+cd ([Environment]::GetFolderPath('Desktop'))
+git clone https://github.com/ValeriaAlarcon119/metaADS.git
+cd metaADS
+npm ci
+```
+
+- La primera línea lleva al escritorio aunque se llame "Escritorio" o esté
+  dentro de OneDrive.
+- Si el repositorio pide iniciar sesión en GitHub, se abre una ventana para
+  hacerlo. Tu usuario tiene que estar invitado como colaborador del repositorio.
+- Usa **`npm ci`**, no `npm install`: `ci` instala exactamente las versiones de
+  `package-lock.json`; `install` puede traer otras más nuevas.
+
+### Paso 5 · Poner los tres archivos que no vienen en el repositorio
+
 El repositorio trae **todo el código**, pero a propósito **no trae tres cosas**.
-Ninguna de ellas debe viajar por internet, así que hay que ponerlas a mano en
-cada equipo:
+Ninguna debe viajar por internet, así que se pasan por un canal privado y se
+ponen a mano en la carpeta `metaADS`:
 
 | Qué falta | Dónde va | Por qué no está en git |
 |---|---|---|
-| **`.env`** | en la raíz del proyecto | Lleva un token con control total sobre las dos cuentas publicitarias. Copia `.env.ejemplo` como `.env` y rellénalo. |
+| **`.env`** | en la raíz del proyecto | Lleva un token con control total sobre las dos cuentas publicitarias. Nunca por un grupo ni por correo abierto. Si no te lo pasan, copia `.env.ejemplo` como `.env` y rellénalo. |
 | **`lineas.xlsx`** | en la raíz del proyecto | Los 13 teléfonos de WhatsApp y el nombre del líder de cada sede. Son datos personales. |
 | **Las piezas** | `creativos/<sede>/` | Fotos y videos, decenas de MB cada uno. Viven en el Drive del equipo creativo (punto 12 del manual). |
 
 Las carpetas de `creativos/` sí vienen creadas, vacías. El archivo se nombra con
 la marca y el modelo: `tecnocamon50pro-mocoa.png`.
 
-Cuando estén los tres, comprueba que todo responde antes de pautar nada:
+### Paso 6 · Comprobar que todo responde
 
-```bash
-npm test            # 416 comprobaciones, sin red ni credenciales
-npm run cuentas     # que el token alcance las cuentas y pueda CREAR en ellas
-npm run lineas      # el WhatsApp que le toca a cada sede
+```powershell
+npm test               # 477 comprobaciones, sin red ni credenciales
+npm run revisar-sedes  # las 13 sedes armadas sin conexión: debe decir "problemas: 0"
+npm run cuentas        # que el token alcance las cuentas y pueda CREAR en ellas
+npm run lineas         # el WhatsApp que le toca a cada sede
 ```
 
-En Windows, `abrir-panel.bat` arranca el panel y abre el navegador de un doble
-clic, sin tocar la consola.
+`npm test` tiene que terminar en **"477 comprobaciones, todas pasaron"**. Si
+falla algo, la instalación no quedó bien: no pautes hasta resolverlo.
+
+Para abrir el panel: `npm run panel`, o doble clic en **`abrir-panel.bat`**, que
+arranca el panel y abre el navegador sin tocar la consola.
+
+---
+
+## Traer los cambios nuevos (git pull)
+
+Cada vez que alguien avise que subió cambios, en el equipo de cada compañero:
+
+1. **Cerrar el panel** si está abierto (cerrar la ventana negra del panel).
+2. Abrir PowerShell y entrar a la carpeta del proyecto:
+
+   ```powershell
+   cd ([Environment]::GetFolderPath('Desktop'))\metaADS
+   ```
+
+3. Traer los cambios, reinstalar librerías y comprobar:
+
+   ```powershell
+   git pull
+   npm ci
+   npm test
+   ```
+
+4. Volver a abrir el panel (`abrir-panel.bat` o `npm run panel`).
+
+`git pull` **no toca** el `.env`, `lineas.xlsx` ni las piezas de `creativos/`:
+esos archivos no están en git y se quedan como estaban.
+
+**Si `git pull` dice** *"Your local changes to the following files would be
+overwritten"* es que en ese equipo se editó algún archivo del código. Para
+dejarlo igual que el repositorio (se pierden esos cambios locales):
+
+```powershell
+git stash
+git pull
+npm ci
+```
+
+Si esos cambios locales importan, no lo hagas: avisa antes a quien mantiene el
+proyecto.
+
+---
+
+## Subir cambios (git push)
+
+Solo para quien mantiene el proyecto. Desde la carpeta del proyecto:
+
+```powershell
+npm test                  # que todo pase ANTES de subir
+git status                # revisar qué archivos cambiaron
+git add -A
+git commit -m "Qué se cambió, en una línea"
+git push
+```
+
+Después, avisar al equipo para que hagan **git pull** (sección anterior).
+
+El `.env`, `lineas.xlsx`, los PDF y las piezas de `creativos/` **nunca se suben**
+aunque se use `git add -A`: el `.gitignore` los excluye. Aun así, revisa
+`git status` antes del commit: si alguna vez aparece `.env` en la lista, **no
+hagas commit** y avisa.
 
 ---
 
 ## El panel (recomendado)
 
 ```bash
-npm install
 npm run panel        # y abrir http://127.0.0.1:4317
 ```
 
@@ -247,10 +369,12 @@ panel/
   app.js                        Navegación, edición y la barra de progreso.
 campanas/
   _plantilla.js                 Cópiala para crear una campaña nueva.
-  neiva-c4-and-cred.js          La prueba de Neiva: config + copys, todo junto.
+  mocoa-and-cred.js             La prueba de Mocoa: config + copys, todo junto.
+  neiva-and-cred.js             La misma prueba para Neiva.
 creativos/<sede>/               Una carpeta por sede, con sus piezas.
 herramientas/
   pruebas.js                    npm test — todo lo verificable sin red.
+  revisar-sedes.js              npm run revisar-sedes — las 13 sedes armadas sin red.
   ver-lineas.js                 npm run lineas — el número de cada sede.
   ver-creativos.js              npm run creativos — el inventario de piezas.
 src/
@@ -262,7 +386,7 @@ src/
   targeting.js                  Geolocalización por sede y apagado de expansión.
   creatives.js                  Sube imagen y video, y arma el AdCreative.
   tracker.js                    Consecutivos leídos de Ads Manager. Solo lectura.
-  builder.js                    Orquesta Campaña → Conjunto → Anuncios.
+  builder.js                    Orquesta piezas y creativos → Campaña → Conjunto → Anuncios.
   config.js                     .env, credenciales y datos de la cuenta.
 ```
 

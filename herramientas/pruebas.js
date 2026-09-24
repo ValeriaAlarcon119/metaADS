@@ -37,6 +37,7 @@ import {
   expansionPorDefecto,
   INTERRUPTORES_DE_EXPANSION,
   SEDES_DISPONIBLES,
+  SEDES as SEDES_TARGETING,
 } from '../src/targeting.js';
 import {
   ENLACE_WHATSAPP,
@@ -72,7 +73,7 @@ import {
   camposDeMeta,
   listarParaLaInterfaz,
 } from '../src/objetivos.js';
-import { cuentaDeSede } from '../src/config.js';
+import { cuentaDeSede, factorMoneda, aUnidadMenor, formatearMoneda } from '../src/config.js';
 import { resolverCreativo, listarCreativosDeSede } from '../src/creativos-sede.js';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -598,7 +599,8 @@ const campanaDeMentira = sedeConPiezas
   ? {
       archivo: '_de-prueba',
       sede: sedeConPiezas,
-      sedeTargeting: sedeConPiezas,
+      // La clave de targeting no siempre es el codigo: LA16 es PASTO_LA16.
+      sedeTargeting: Object.keys(SEDES_TARGETING).find((k) => SEDES_TARGETING[k].codigo === sedeConPiezas),
       objetivo: 'MENSAJES_WHATSAPP',
       conjuntos: [
         {
@@ -795,7 +797,7 @@ comprobar(
   'El modo multiple con video tambien manda los 5 de cada uno',
   (() => {
     const p = armarParamsAdCreative({ ...cincoTextos, asset: assetVideoFalso, modoTexto: 'multiple' });
-    return p.asset_feed_spec.bodies.length === 5 && p.asset_feed_spec.videos?.[0]?.video_id === '999';
+    return p.asset_feed_spec.bodies.length === 5 && p.object_story_spec.video_data?.video_id === '999' && !p.object_story_spec.link_data && !p.asset_feed_spec.videos;
   })(),
 );
 
@@ -852,7 +854,7 @@ comprobar(
   'standard_enhancements va declarada en OPT_OUT',
   mejorasMultiple.apagadas.includes('standard_enhancements'),
 );
-for (const funcion of ['image_touchups', 'text_generation', 'enhance_cta', 'inline_comment', 'music']) {
+for (const funcion of ['image_touchups', 'text_generation', 'enhance_cta', 'inline_comment', 'advantage_plus_creative']) {
   comprobar(`${funcion} queda en OPT_OUT`, mejorasMultiple.apagadas.includes(funcion));
 }
 comprobar(
@@ -1157,9 +1159,12 @@ if (sedeConPiezas) {
 }
 
 comprobar('Filtra el barrido por familia', (() => {
-  // En ninguna carpeta hay iPhone ahora mismo.
-  const r = productosDeLaCarpeta(sedeConPiezas || 'NEIVA', 'IPH');
-  return r.productos.length === 0;
+  // Pida la familia que pida, solo vuelven equipos de esa familia. No depende
+  // de que haya o no piezas de iPhone en las carpetas.
+  const iph = productosDeLaCarpeta(sedeConPiezas || 'NEIVA', 'IPH');
+  const and = productosDeLaCarpeta(sedeConPiezas || 'NEIVA', 'AND');
+  const esIphone = (p) => /iphone/i.test(JSON.stringify(p));
+  return iph.productos.every(esIphone) && !and.productos.some(esIphone);
 })());
 
 comprobar('Los archivos que no puede leer se reportan, no se ignoran', (() => {
@@ -1170,7 +1175,8 @@ comprobar('Los archivos que no puede leer se reportan, no se ignoran', (() => {
 })());
 
 comprobar('Pedir una familia sin piezas lo dice claro', (() => {
-  const r = interpretar(`campana para ${(sedeConPiezas || 'NEIVA').toLowerCase()} de iphone`);
+  // No hay piezas de Mac o iPad en ninguna carpeta: sirve aunque haya iPhone.
+  const r = interpretar(`campana para ${(sedeConPiezas || 'NEIVA').toLowerCase()} de ipad`);
   return !r.ok && r.problemas.some((p) => p.includes('no encontre ninguna pieza'));
 })());
 
@@ -1619,6 +1625,13 @@ comprobar('targeting_optimization se borra aunque se cuele con expansion encendi
   );
   return t.targeting_optimization === undefined;
 })());
+
+seccion('21. Presupuesto en pesos: Meta no usa centavos en COP');
+
+comprobar('El COP va sin decimales (factor 1)', factorMoneda('COP') === 1);
+comprobar('$25.000 al dia llega a Meta como 25000, no como 2500000', aUnidadMenor(25000, factorMoneda('COP')) === '25000');
+comprobar('El dolar si lleva centavos (factor 100)', factorMoneda('USD') === 100);
+comprobar('25000 en COP se muestra como 25.000', /25.000/.test(formatearMoneda(25000, 'COP')));
 
 /* -------------------------------------------------------------------------- */
 

@@ -157,6 +157,19 @@ export function cuentaDeSede(fichaSede, cuentaPedida = '') {
 export const PAGE_ID = (process.env.META_PAGE_ID || '').trim();
 
 /**
+ * Pagina de Facebook de una sede. El WhatsApp de la sede tiene que estar
+ * vinculado a ESA pagina, o Meta rechaza el conjunto con "This WhatsApp phone
+ * number is not linked to your account". Casi todas las sedes usan META_PAGE_ID;
+ * la que tenga su linea en otra pagina se declara aparte en el .env:
+ *   META_PAGE_ID_NEIVA=<id de la pagina donde esta el WhatsApp de Neiva>
+ * El token tiene que tener acceso a esa pagina.
+ */
+export function paginaDeSede(sede) {
+  const clave = `META_PAGE_ID_${String(sede || '').toUpperCase()}`;
+  return (process.env[clave] || '').trim() || PAGE_ID;
+}
+
+/**
  * Numero de WhatsApp Business, formato internacional sin "+".
  *
  * OJO: normalmente esto va VACIO. El numero de cada sede se lee de
@@ -186,6 +199,19 @@ export const INSTAGRAM_USER_ID = (
   process.env.META_INSTAGRAM_ACTOR_ID ||
   ''
 ).trim();
+
+/**
+ * Cuenta de Instagram de una sede, para que el anuncio salga en Instagram a
+ * nombre de esa cuenta y no de la pagina. Va con la pagina de la sede:
+ *   META_INSTAGRAM_USER_ID_NEIVA=<id de la cuenta de Instagram de Celredco>
+ * Sin declarar, se usa META_INSTAGRAM_USER_ID, y si tampoco hay, ninguna: Meta
+ * acepta el anuncio y en Instagram lo muestra con el nombre de la pagina. El
+ * token tiene que tener acceso a la cuenta de Instagram, o Meta lo rechaza.
+ */
+export function instagramDeSede(sede) {
+  const clave = `META_INSTAGRAM_USER_ID_${String(sede || '').toUpperCase()}`;
+  return (process.env[clave] || '').trim() || INSTAGRAM_USER_ID;
+}
 
 export const DEBUG = process.env.META_DEBUG === '1';
  
@@ -256,10 +282,16 @@ export const ESTADOS_VALIDOS = ['PAUSED', 'ACTIVE'];
  */
  
 /**
- * Monedas de Meta SIN subunidades (el monto se envia tal cual).
- * Cualquier otra moneda — incluido el COP — se envia multiplicada por 100.
+ * Monedas que Meta maneja SIN subunidades: el monto se envia tal cual.
+ *
+ * El COP va aqui. Meta lo trata con offset 1: un conjunto de $25.000 al dia
+ * se guarda como daily_budget=25000 (comprobado el 24/09/2026 releyendo los
+ * conjuntos hechos a mano en CA 01 y CA 02; min_daily_budget de la cuenta
+ * tambien viene en pesos enteros, 3165). Antes el COP se multiplicaba por 100
+ * y un conjunto de $25.000 llegaba a Meta como $2.500.000 al dia.
  */
 const MONEDAS_SIN_DECIMALES = new Set([
+  'COP', 'CRC', 'HUF', 'IDR', 'ISK', 'TWD',
   'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW',
   'MGA', 'PYG', 'RWF', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
 ]);
@@ -313,7 +345,7 @@ export function aUnidadMenor(monto, factor) {
 }
  
 /** Formatea un entero de unidad menor de vuelta a moneda legible. */
-export function formatearMoneda(montoUnidadMenor, moneda = 'COP', factor = 100) {
+export function formatearMoneda(montoUnidadMenor, moneda = 'COP', factor = factorMoneda(moneda)) {
   const mayor = Number(montoUnidadMenor) / factor;
   return `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(mayor)} ${moneda}`;
 }

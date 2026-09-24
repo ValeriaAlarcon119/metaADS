@@ -169,7 +169,7 @@ function imprimirVistaPrevia(plan) {
   out.push(filaEtiqueta('Cuenta publicitaria', `${plan.cuenta.etiqueta} · ${plan.cuenta.id}`));
   out.push(filaDetalle(`${plan.cuenta.name || '—'} · elegida por ${plan.cuenta.origen}`));
   out.push(filaEtiqueta('Moneda / huso', `${plan.cuenta.currency} · ${plan.cuenta.timezone_name || '—'}`));
-  out.push(filaEtiqueta('Pagina de Facebook', PAGE_ID || `${C.rojo}(FALTA META_PAGE_ID)`));
+  out.push(filaEtiqueta('Pagina de Facebook', plan.paginaId || PAGE_ID || `${C.rojo}(FALTA META_PAGE_ID)`));
   out.push(filaEtiqueta('Sede', `${plan.sede.codigo} · ${plan.sede.sede} (${plan.sede.ciudad}) · ${plan.sede.cuenta}`));
   out.push(filaEtiqueta('Distintivo', `${plan.sede.dist}  ${C.dim}(va en conjunto y anuncios)`));
   out.push(linea('├', '─', '┤'));

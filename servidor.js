@@ -282,7 +282,9 @@ async function prepararPlan({
   }
 
   // El nombre de la Pagina para enseñarlo junto al numero.
-  _paginaVista = sinMeta ? { id: PAGE_ID, nombre: '', error: '' } : await nombreDeLaPagina();
+  // Cada sede puede ir con su propia pagina (META_PAGE_ID_<SEDE>).
+  const paginaDelPlan = plan.paginaId || PAGE_ID;
+  _paginaVista = sinMeta ? { id: paginaDelPlan, nombre: '', error: '' } : await nombreDeLaPagina(paginaDelPlan);
 
   const firma = firmarPlan(plan);
   planes.set(firma, { plan, cfg, cambios, creadoEn: Date.now(), sinMeta: Boolean(sinMeta) });
@@ -563,26 +565,28 @@ async function revisarToken() {
  * "140694115785963" no le dice nada a nadie; "Celred" si. Se cachea porque no
  * cambia y no hace falta preguntarlo en cada pantalla.
  */
-let _pagina = { id: '', nombre: '', error: '' };
+const _paginas = new Map();
 
-async function nombreDeLaPagina() {
-  if (!PAGE_ID) return { id: '', nombre: '', error: 'falta META_PAGE_ID en el .env' };
-  if (_pagina.id === PAGE_ID) return _pagina;
+async function nombreDeLaPagina(id = PAGE_ID) {
+  if (!id) return { id: '', nombre: '', error: 'falta META_PAGE_ID en el .env' };
+  // Solo se cachea el nombre bueno: un error de acceso se vuelve a preguntar,
+  // porque deja de pasar en cuanto el administrador da el permiso.
+  if (_paginas.get(id)?.nombre) return _paginas.get(id);
 
+  let pagina;
   try {
     const r = await fetch(
-      `${GRAPH_BASE}/${PAGE_ID}?fields=name&access_token=${encodeURIComponent(ACCESS_TOKEN)}`,
+      `${GRAPH_BASE}/${id}?fields=name&access_token=${encodeURIComponent(ACCESS_TOKEN)}`,
       { signal: AbortSignal.timeout(15000) },
     );
     const d = await r.json();
-    _pagina = d?.error
-      ? { id: PAGE_ID, nombre: '', error: d.error.message }
-      : { id: PAGE_ID, nombre: d.name || '', error: '' };
+    pagina = d?.error ? { id, nombre: '', error: d.error.message } : { id, nombre: d.name || '', error: '' };
   } catch (error) {
-    _pagina = { id: PAGE_ID, nombre: '', error: error.message };
+    pagina = { id, nombre: '', error: error.message };
   }
 
-  return _pagina;
+  _paginas.set(id, pagina);
+  return pagina;
 }
 
 async function apiEstado(res) {
