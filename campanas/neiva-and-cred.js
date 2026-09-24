@@ -106,27 +106,27 @@ export default {
 
       // Angulos: 1 camara · 2 formas de pago · 3 tienda local · 4 bateria · 5 pantalla
       textosPrincipales: [
-        'Cámara principal de 50 MP y teleobjetivo con zoom óptico 3x. Tecno Camon 50 Pro en Celred Neiva. Escríbenos por WhatsApp.',
-        'Tecno Camon 50 Pro de contado o con crédito en Celred Neiva. Escríbenos por WhatsApp y te contamos las opciones.',
-        'Tecno Camon 50 Pro en la tienda Celred de Neiva, Cra 2 # 6-26 local 5, Centro. Escríbenos por WhatsApp.',
-        'Batería de más de 6.000 mAh y carga rápida de 45 W en el Tecno Camon 50 Pro. En Celred Neiva. Escríbenos por WhatsApp.',
-        'Pantalla AMOLED de 6,78 pulgadas a 144 Hz en el Tecno Camon 50 Pro. En Celred Neiva. Escríbenos por WhatsApp.',
+        '📸 Cámara de 50 MP y zoom óptico 3x en el Tecno Camon 50 Pro.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n✨ ¡En Celred es posible!\n👉 ¡Escríbenos hoy!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '💥 ¿Quieres el Tecno Camon 50 Pro? Tenlo de contado o a crédito.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n🙌 ¿Estás reportado? Inténtalo aquí en Celred.\n📞 ¡Llámanos ya!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '🔋 Más de 6.000 mAh y carga rápida de 45 W en el Tecno Camon 50 Pro.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n🤩 Tu próximo celular está más cerca en Celred.\n🛒 ¡Aparta el tuyo hoy!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '🌈 Pantalla AMOLED de 6,78" a 144 Hz en el Tecno Camon 50 Pro.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n⚡ ¡Inténtalo aquí en Celred!\n⚡ ¡Cotiza ahora mismo!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '✅ Tecno Camon 50 Pro con garantía y asesoría en Celred Neiva.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n🏆 Estrenar sí es posible en Celred.\n🤝 ¡Habla hoy con un asesor!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
       ],
 
       titulos: [
-        'Tecno Camon 50 Pro en Celred Neiva',
-        'Cámara principal de 50 MP',
-        'Batería de más de 6.000 mAh',
-        'Contado, crédito o plan retoma',
-        'Pantalla AMOLED de 144 Hz',
+        'Tecno Camon 50 Pro',
+        'CRÉDITO PARA REPORTADOS',
+        'Cámara de 50 MP',
+        '¡En Celred es posible!',
+        'Celred Neiva',
       ],
 
       descripciones: [
-        'Tienda Celred en Neiva',
-        'Escríbenos por WhatsApp',
-        'Consulta opciones de crédito',
-        'Carga rápida de 45 W',
-        'Consulta disponibilidad',
+        '👉 ¡Escríbenos hoy!',
+        '📞 ¡Llámanos ya!',
+        '🛒 ¡Aparta el tuyo hoy!',
+        '⚡ ¡Cotiza ahora mismo!',
+        '🤝 ¡Habla hoy con un asesor!',
       ],
 
       // Lo escribe el CLIENTE al abrir el chat, no la tienda: va en primera
@@ -156,27 +156,27 @@ export default {
 
       // Angulos: 1 rendimiento · 2 bateria · 3 formas de pago · 4 tienda · 5 retoma
       textosPrincipales: [
-        'Mira en video el Infinix Hot 60 Pro: Helio G200 y pantalla AMOLED de 144 Hz. Escríbenos por WhatsApp.',
-        'Batería de 5.160 mAh y carga de 45 W: 50% en 22 minutos según el fabricante. Está en Celred Neiva, escríbenos por WhatsApp.',
-        'El Infinix Hot 60 Pro de contado o con crédito en Celred Neiva. Cotiza por WhatsApp sin compromiso.',
-        'En Celred Neiva el Infinix Hot 60 Pro se prueba en tienda, con garantía y asesoría. Agenda por WhatsApp.',
-        'Recibimos el celular usado como parte de pago del Infinix Hot 60 Pro. Consulta el avalúo por WhatsApp.',
+        '🎬 Mira el Infinix Hot 60 Pro: Helio G200 y pantalla AMOLED de 144 Hz.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n✨ ¡En Celred es posible!\n💬 ¡Pregunta hoy por WhatsApp!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '🔋 Batería de 5.160 mAh y carga de 45 W en el Infinix Hot 60 Pro.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n💯 En Celred te asesoramos para que lo estrenes.\n📲 ¡Escríbenos ya por WhatsApp!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '💥 ¿Quieres el Infinix Hot 60 Pro? Tenlo de contado o a crédito.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n🙌 ¿Estás reportado? Inténtalo aquí en Celred.\n🙋 ¡Pide tu asesoría ya!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '📱 Ven a probar el Infinix Hot 60 Pro en Celred Neiva.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n🎯 Pregunta sin compromiso: ¡en Celred es posible!\n🏬 ¡Visítanos hoy en tienda!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
+        '🔄 Recibimos tu usado como parte de pago del Infinix Hot 60 Pro.\n💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦\n⚡ ¡Inténtalo aquí en Celred!\n⏰ ¡No te quedes sin el tuyo, escríbenos!\n\n📍 Cra 2 # 6-26 local 5, Centro, Neiva.',
       ],
 
       titulos: [
-        'Infinix Hot 60 Pro en video',
-        'AMOLED 144 Hz y Helio G200',
-        'Batería de 5.160 mAh',
-        'De contado o a crédito en Neiva',
-        'Retoma de equipo usado',
+        'Infinix Hot 60 Pro',
+        'CRÉDITO PARA REPORTADOS',
+        'AMOLED de 144 Hz',
+        '¡En Celred es posible!',
+        'Celred Neiva',
       ],
 
       descripciones: [
-        'Tienda Celred en Neiva',
-        'Carga rápida de 45 W',
-        'Crédito, contado o retoma',
-        'Cámara principal de 50 MP',
-        'Asesoría en tienda',
+        '💬 ¡Pregunta hoy por WhatsApp!',
+        '🛒 ¡Aparta el tuyo hoy!',
+        '🙋 ¡Pide tu asesoría ya!',
+        '🏬 ¡Visítanos hoy en tienda!',
+        '📞 ¡Llámanos ya!',
       ],
 
       mensajePrellenado: 'Hola, quiero más información para adquirir el Infinix Hot 60 Pro',

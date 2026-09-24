@@ -75,6 +75,7 @@ import {
 } from './nomenclatura.js';
 
 import { lineaDeSede } from './lineas.js';
+import { esSoloContado } from './copys.js';
 
 import {
   subirCreativoLocal,
@@ -481,6 +482,9 @@ export async function planificarEstructura(cfg) {
         // Los copys que escribio el interprete se marcan, para que la interfaz
         // pueda pedir que se revisen en vez de presentarlos como definitivos.
         copyGenerado: Boolean(a.generado),
+        // Contado: el precio que escribio una persona, o pendiente.
+        precioContado: a.precioContado || null,
+        faltaPrecio: esSoloContado(entrada.segmento) && !(Number(a.precioContado) > 0),
         comoSeEncontroElCreativo: a.comoSeEncontro || '',
         // El enlace va pelado: el numero de la sede se fija en el conjunto, en
         // promoted_object.whatsapp_phone_number, no en la URL.
@@ -816,6 +820,19 @@ export async function crearEstructuraCampana(plan, opciones = {}) {
   }
 
   exigirCredenciales();
+
+  // Contado sin precio: no se crea nada. Un anuncio de contado sin precio es
+  // justo lo que el cliente prohibio.
+  const sinPrecio = plan.conjuntos.flatMap((c) => c.anuncios.filter((a) => a.faltaPrecio).map((a) => a.nombre));
+  if (sinPrecio.length) {
+    const e = new Error(
+      `Falta el precio de contado de: ${sinPrecio.join(', ')}. Escribelo en el campo "Precio de contado" ` +
+        '(etapa 3 del panel) y vuelve a enviar. No se creo nada.',
+    );
+    e.amigable = true;
+    e.titulo = 'Falta el precio de contado';
+    throw e;
+  }
 
   const creados = {
     campaignId: plan.campana.id || null,

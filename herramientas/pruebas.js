@@ -62,7 +62,9 @@ import {
   segmentoDe,
   productosDeLaCarpeta,
 } from '../src/interprete.js';
-import { generarCopys } from '../src/copys.js';
+import { generarCopys, revisarReglasDePago, LLAMADOS_A_LA_ACCION, sinNegrilla, CREDITO_PARA_REPORTADOS } from '../src/copys.js';
+import { formatearPrecio, leerPrecio, ponerPrecio, MARCA_PRECIO } from '../src/precios.js';
+import { aplicarAjustes as aplicarAjustesPrecio } from '../src/ajustes.js';
 import { DIRECCIONES, direccionDeSede, direccionEnUnaLinea } from '../src/direcciones.js';
 import {
   CODIGOS_OBJETIVO,
@@ -508,7 +510,9 @@ for (const nombre of campanasDefinidas) {
       comprobar(`${etiqueta}: hay ${campo}`, lista.length > 0 && lista.length <= 5, `hay ${lista.length}`);
       comprobar(`${etiqueta}: ${campo} sin repetidos`, new Set(lista).size === lista.length);
 
-      const largos = lista.filter((t) => t.length > limite);
+      // El texto principal pasa de 125 a proposito: lleva la direccion en su
+      // renglon (formato de Celred). Se revisan titulos y descripciones.
+      const largos = campo === 'textosPrincipales' ? [] : lista.filter((t) => t.length > limite);
       comprobar(
         `${etiqueta}: ${campo} dentro de ${limite} caracteres`,
         largos.length === 0,
@@ -614,7 +618,7 @@ const campanaDeMentira = sedeConPiezas
               referencia: 'EQUIPO DE PRUEBA 128GB',
               rutaCreativoLocal: listarCreativosDeSede(sedeConPiezas)[0].nombre,
               mensajePrellenado: 'Hola, quiero informacion',
-              textosPrincipales: ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco'],
+              textosPrincipales: ['Uno para reportados', 'Dos para reportados', 'Tres para reportados', 'Cuatro para reportados', 'Cinco para reportados'],
               titulos: ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco'],
               descripciones: ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco'],
             },
@@ -1079,9 +1083,10 @@ comprobar('Un equipo sin creativo se reporta, no se inventa', (() => {
 
 // Estas dos van contra la sede que TENGA piezas, no contra una fija: los
 // archivos se mueven de carpeta y la prueba no debe depender de donde esten
-// hoy. La frase usa el atajo "de android", que lee la carpeta entera.
+// hoy. La frase nombra los modelos que hay en la carpeta: el modelo es obligatorio.
 if (sedeConPiezas) {
-  const frase = `campana para ${sedeConPiezas.toLowerCase()} de android`;
+  const modelos = productosDeLaCarpeta(sedeConPiezas, 'AND').productos.map((p) => p.referencia.toLowerCase());
+  const frase = `campana para ${sedeConPiezas.toLowerCase()} con ${modelos.join(' y ')}`;
 
   comprobar(`Arma la campana de ${sedeConPiezas} con las piezas que existen`, (() => {
     const r = interpretar(frase);
@@ -1119,7 +1124,7 @@ comprobar('El reparto se enseña aunque falten creativos', (() => {
   return !r.ok && r.lectura.agrupacionPrevista.length === 2;
 })());
 
-/* --- Barrido de la carpeta: "de android" sin decir modelos -------------- */
+/* --- Lectura de la carpeta (el modelo es obligatorio en la orden) ------ */
 
 // Contra la sede que TENGA piezas: los archivos cambian de carpeta y lo que se
 // prueba es el barrido, no donde vivan hoy.
@@ -1134,9 +1139,9 @@ if (sedeConPiezas) {
     `no identifico nada en creativos/${nombreSede}/`,
   );
 
-  comprobar(`"campana para ${nombreSede} de android" barre la carpeta sola`, (() => {
+  comprobar(`"campana para ${nombreSede} de android" ya NO barre la carpeta: pide el modelo`, (() => {
     const r = interpretar(`ayudame a crear una campana para ${nombreSede} de android`);
-    return r.ok && r.cfg.conjuntos[0].anuncios.some((a) => a.referencia === primeraReferencia);
+    return !r.ok && r.problemas.some((p) => p.includes('sin decir el modelo'));
   })());
 
   comprobar('Nombrar modelos NO dispara el barrido de la carpeta', (() => {
@@ -1145,7 +1150,7 @@ if (sedeConPiezas) {
   })());
 
   comprobar('La ruta del creativo apunta al archivo de verdad, no a la raiz', (() => {
-    const r = interpretar(`campana para ${nombreSede} de android`);
+    const r = interpretar(`campana para ${nombreSede} con ${primeraReferencia.toLowerCase()}`);
     if (!r.ok) return false;
     // Se resuelve con el mismo criterio que usa el builder.
     return r.cfg.conjuntos[0].anuncios.every((a) => {
@@ -1174,10 +1179,19 @@ comprobar('Los archivos que no puede leer se reportan, no se ignoran', (() => {
   return Array.isArray(r.noIdentificados);
 })());
 
-comprobar('Pedir una familia sin piezas lo dice claro', (() => {
-  // No hay piezas de Mac o iPad en ninguna carpeta: sirve aunque haya iPhone.
+comprobar('Pedir una familia sin modelo pide el modelo', (() => {
   const r = interpretar(`campana para ${(sedeConPiezas || 'NEIVA').toLowerCase()} de ipad`);
-  return !r.ok && r.problemas.some((p) => p.includes('no encontre ninguna pieza'));
+  return !r.ok && r.problemas.some((p) => p.includes('sin decir el modelo'));
+})());
+
+comprobar('"de android" sin modelo NO toma piezas de la carpeta', (() => {
+  const r = interpretar('campana para mocoa de android');
+  return !r.ok && r.problemas.some((p) => p.includes('Especifica marca y modelo'));
+})());
+
+comprobar('...y dice que modelos hay en la carpeta', (() => {
+  const r = interpretar('campana para mocoa de android');
+  return r.problemas.some((p) => p.includes('Tecno Camon 50 Pro'));
 })());
 
 /* -------------------------------------------------------------------------- */
@@ -1209,8 +1223,8 @@ const todosLosCopys = [
 // despliega, y es el formato que usa Celred. Titulos y descripciones no: esos
 // Meta los corta de verdad.
 comprobar(
-  'Los textos principales cortos caben en el feed sin recorte',
-  copysDePrueba.textosPrincipales.filter((t) => t.length <= 125).length >= 2,
+  'Todos los textos principales llevan la direccion de la sede',
+  generarCopys({ producto: 'Samsung A17', codigoSede: 'VICTORIA', segmento: 'AND-CRED' }).textosPrincipales.every((t) => t.includes('📍')),
 );
 comprobar('Ningun titulo pasa de 40 caracteres', copysDePrueba.titulos.every((t) => t.length <= 40));
 comprobar('Ninguna descripcion pasa de 30 caracteres', copysDePrueba.descripciones.every((t) => t.length <= 30));
@@ -1246,7 +1260,7 @@ comprobar(
 );
 
 comprobar('Un conjunto de contado no promete credito', (() => {
-  const c = generarCopys({ producto: 'iPhone 15', ciudad: 'Pasto', segmento: 'IPH-CONT' });
+  const c = generarCopys({ producto: 'iPhone 15', ciudad: 'Pasto', segmento: 'IPH-CONT', precioContado: 1999000 });
   const textos = [...c.textosPrincipales, ...c.titulos, ...c.descripciones];
   return !textos.some((t) => /credito/i.test(t));
 })());
@@ -1407,7 +1421,7 @@ const copysDeVariasSedes = ['ORITO', 'NEIVA', 'LA16', 'MEDELLIN'].flatMap((sede)
 
 for (const prohibida of [
   'sorteo', 'gratis', 'rifa', 'descuento', 'promocion', 'promoción',
-  'sin inicial', 'reportado', 'oferta', '% de', 'aprovecha antes',
+  'sin inicial', 'oferta', '% de', 'aprovecha antes',
 ]) {
   comprobar(
     `Los copys NO hablan de "${prohibida}"`,
@@ -1632,6 +1646,188 @@ comprobar('El COP va sin decimales (factor 1)', factorMoneda('COP') === 1);
 comprobar('$25.000 al dia llega a Meta como 25000, no como 2500000', aUnidadMenor(25000, factorMoneda('COP')) === '25000');
 comprobar('El dolar si lleva centavos (factor 100)', factorMoneda('USD') === 100);
 comprobar('25000 en COP se muestra como 25.000', /25.000/.test(formatearMoneda(25000, 'COP')));
+
+seccion('22. Credito dice "reportados"; contado lleva precio manual; llamados distintos');
+
+{
+  const credito = generarCopys({ producto: 'Tecno Camon 50 Pro', codigoSede: 'MOCOA', segmento: 'AND-CRED' });
+  comprobar(
+    'Credito: los 5 textos principales dicen "reportados"',
+    credito.textosPrincipales.length === 5 && credito.textosPrincipales.every((t) => /reportad/i.test(sinNegrilla(t))),
+  );
+  comprobar('Credito: un titulo lo dice', credito.titulos.some((t) => /reportad/i.test(sinNegrilla(t))));
+  comprobar(
+    'Credito: "CRÉDITO PARA REPORTADOS" en mayusculas y negrilla en los 5 textos',
+    credito.textosPrincipales.every((t) => t.includes(CREDITO_PARA_REPORTADOS)),
+  );
+  comprobar('Credito: ningun texto dice "tambien"', !credito.textosPrincipales.some((t) => /tambi[eé]n/i.test(sinNegrilla(t))));
+  comprobar(
+    'Las descripciones son SOLO llamados a la accion, con emoji al inicio',
+    credito.descripciones.length === 5 &&
+      credito.descripciones.every((d) => LLAMADOS_A_LA_ACCION.includes(d) && /^\p{Extended_Pictographic}/u.test(d)),
+  );
+  comprobar('Los titulos son cortos (hasta 30 caracteres)', credito.titulos.every((t) => t.length <= 30));
+  comprobar('Cada texto: el llamado a la accion va con emoji delante', credito.textosPrincipales.every((t) => {
+    const ll = LLAMADOS_A_LA_ACCION.find((x) => t.includes(x));
+    return ll && /^\p{Extended_Pictographic}/u.test(ll);
+  }));
+  comprobar('Cada texto: lleva una frase llamativa de Celred', credito.textosPrincipales.every((t) => /celred/i.test(t.split('\n')[2] || '')));
+  comprobar('Credito: no pone precio', ![...credito.textosPrincipales, ...credito.titulos].some((t) => /\$\s*\d/.test(t)));
+  comprobar('Credito: sus propios textos cumplen la regla', revisarReglasDePago({
+    segmento: 'AND-CRED', producto: 'Tecno Camon 50 Pro', textosPrincipales: credito.textosPrincipales,
+  }).errores.length === 0);
+
+  for (const segmento of ['IPH-CRED', 'MIXTO', 'MAC-IPAD', 'RETOMA']) {
+    const c = generarCopys({ producto: 'iPhone 15', codigoSede: 'NEIVA', segmento });
+    comprobar(`${segmento}: los 5 textos dicen "reportados"`, c.textosPrincipales.every((t) => /reportad/i.test(sinNegrilla(t))));
+  }
+
+  /* --- Llamados a la accion ------------------------------------------- */
+  const llamadosDe = (textos) => textos.map((t) => LLAMADOS_A_LA_ACCION.find((l) => t.includes(l)));
+  for (let vuelta = 0; vuelta < 20; vuelta++) {
+    const c = generarCopys({ producto: 'Redmi 15', codigoSede: 'LA16', segmento: vuelta % 2 ? 'AND-CRED' : 'AND-CONT' });
+    const ll = llamadosDe(c.textosPrincipales);
+    if (!ll.every(Boolean) || new Set(ll).size !== 5) {
+      comprobar('Los 5 textos llevan un llamado a la accion, todos distintos', false, JSON.stringify(ll));
+      break;
+    }
+    if (vuelta === 19) comprobar('Los 5 textos llevan un llamado a la accion, todos distintos (20 vueltas)', true);
+  }
+  {
+    const vistos = new Set();
+    for (let v = 0; v < 30; v++) vistos.add(llamadosDe(generarCopys({ producto: 'Redmi 15', codigoSede: 'LA16', segmento: 'AND-CRED' }).textosPrincipales).join('|'));
+    comprobar('Los llamados se sortean: no salen siempre en el mismo orden', vistos.size > 1);
+  }
+  {
+    const fijo = () => 0.5;
+    const a = generarCopys({ producto: 'Redmi 15', codigoSede: 'LA16', segmento: 'AND-CRED', azar: fijo });
+    const b = generarCopys({ producto: 'Redmi 15', codigoSede: 'LA16', segmento: 'AND-CRED', azar: fijo });
+    comprobar('Con el azar fijado, el sorteo se puede repetir', a.textosPrincipales.join() === b.textosPrincipales.join());
+  }
+  comprobar('Hay al menos 7 llamados distintos para sortear', new Set(LLAMADOS_A_LA_ACCION).size >= 7);
+
+  /* --- Contado: precio manual ----------------------------------------- */
+  const sinPrecio = generarCopys({ producto: 'iPhone 13', codigoSede: 'VICTORIA', segmento: 'IPH-CONT', formato: 'VID' });
+  comprobar('Contado sin precio: los copys salen igual, con {PRECIO} en su sitio', sinPrecio.textosPrincipales.every((t) => t.includes(MARCA_PRECIO)));
+  comprobar('Contado sin precio: queda marcado como pendiente', sinPrecio.faltaPrecio === true);
+  comprobar('Contado sin precio: la regla lo marca pendiente, no como error de texto', (() => {
+    const r = revisarReglasDePago({ segmento: 'IPH-CONT', producto: 'iPhone 13', textosPrincipales: sinPrecio.textosPrincipales });
+    return r.faltaPrecio && r.errores.length === 0;
+  })());
+
+  const contado = generarCopys({
+    producto: 'iPhone 13', codigoSede: 'VICTORIA', segmento: 'IPH-CONT', formato: 'VID', precioContado: 1999000,
+  });
+  comprobar(
+    'Contado con precio: los 5 textos principales lo llevan',
+    contado.textosPrincipales.length === 5 && contado.textosPrincipales.every((t) => t.includes('$1.999.000')),
+  );
+  comprobar('Contado: un titulo lleva el precio', contado.titulos.some((t) => t.includes('$1.999.000')));
+  comprobar('Contado: los 5 textos llevan la direccion', contado.textosPrincipales.every((t) => t.includes('📍')));
+  comprobar('Contado: no promete credito', ![...contado.textosPrincipales, ...contado.titulos, ...contado.descripciones].some((t) => /cr[eé]dito/i.test(t)));
+  comprobar('Contado: titulos y descripciones caben', contado.titulos.every((t) => t.length <= 40) && contado.descripciones.every((t) => t.length <= 30));
+
+  comprobar('Texto a mano de credito sin "reportados" se rechaza', revisarReglasDePago({
+    segmento: 'AND-CRED', producto: 'X', textosPrincipales: ['Llevalo a credito', 'Otro para reportados'],
+  }).errores.length === 1);
+  comprobar('Texto a mano de contado con otro precio se rechaza', revisarReglasDePago({
+    segmento: 'IPH-CONT', producto: 'X', precioContado: 1999000, textosPrincipales: ['iPhone a $1.500.000'],
+  }).errores.length === 1);
+  comprobar('Texto a mano de contado con el precio correcto pasa', revisarReglasDePago({
+    segmento: 'IPH-CONT', producto: 'X', precioContado: 1999000, textosPrincipales: ['iPhone a $1.999.000 de contado'],
+  }).errores.length === 0);
+
+  /* --- La orden de contado, de punta a punta -------------------------- */
+  const orden = interpretar('campaña para victoria de iphone 13 de contado');
+  comprobar('Una orden de contado se entiende aunque no traiga precio', orden.ok);
+  if (orden.ok) {
+    const r1 = aplicarAjustesPrecio({ ...orden.cfg, archivo: 'dictada' }, {});
+    const a1 = r1.cfg.conjuntos[0].anuncios[0];
+    comprobar('...queda pendiente de precio', a1.faltaPrecio === true);
+    comprobar('...y avisa que el precio se escribe a mano', (r1.cfg.avisosDeConfiguracion || []).some((t) => t.includes('FALTA EL PRECIO')));
+
+    const r2 = aplicarAjustesPrecio(r1.cfg, { conjuntos: [{ anuncios: [{ precioContado: '1.999.000' }] }] });
+    const a2 = r2.cfg.conjuntos[0].anuncios[0];
+    comprobar('Al escribir el precio en el panel, entra en los 5 textos', a2.textosPrincipales.every((t) => t.includes('$1.999.000')));
+    comprobar('...y ya no queda ningun {PRECIO}', ![...a2.textosPrincipales, ...a2.titulos, ...a2.descripciones].some((t) => t.includes(MARCA_PRECIO)));
+    comprobar('...y deja de estar pendiente', a2.faltaPrecio === false);
+
+    const r3 = aplicarAjustesPrecio(r2.cfg, { conjuntos: [{ anuncios: [{ precioContado: '1899000' }] }] });
+    const a3 = r3.cfg.conjuntos[0].anuncios[0];
+    comprobar('Corregir el precio corrige los textos', a3.textosPrincipales.every((t) => t.includes('$1.899.000') && !t.includes('$1.999.000')));
+
+    let rechazo = null;
+    try { aplicarAjustesPrecio(r1.cfg, { conjuntos: [{ anuncios: [{ precioContado: 'abc' }] }] }); } catch (e) { rechazo = e; }
+    comprobar('Un precio que no es numero se rechaza', Boolean(rechazo));
+  }
+
+  comprobar('El precio se escribe con puntos de mil', formatearPrecio(1999000) === '$1.999.000');
+  comprobar('El precio se lee con o sin puntos', leerPrecio('1.999.000') === 1999000 && leerPrecio('$1999000') === 1999000);
+  comprobar('Un precio vacio no es precio', leerPrecio('') === null);
+  comprobar('ponerPrecio cambia la marca y el precio anterior', ponerPrecio('a {PRECIO} y $1.000.000', 2000000, 1000000) === 'a $2.000.000 y $2.000.000');
+}
+
+seccion('23. Rutas de archivo y objetivo escritos en la orden');
+
+{
+  const { extraerArchivos, detectarObjetivo } = await import('../src/interprete.js');
+  const { copyFileSync, rmSync, existsSync } = await import('node:fs');
+  const RAIZ_CREATIVOS = join(RAIZ, 'creativos');
+
+  const e1 = extraerArchivos('campaña para neiva "C:\\a b\\infinixhot60pro neiva.mp4" a credito');
+  comprobar('Ruta entre comillas, con espacios', e1.rutas[0] === 'C:\\a b\\infinixhot60pro neiva.mp4');
+  comprobar('...y la ruta sale del texto de la orden', !e1.texto.includes('infinix'));
+
+  const e2 = extraerArchivos('sede: Victoria\narchivos:\n  C:\\x y\\iphone13-victoria.png\n  creativos/victoria/a.mp4\npago: contado');
+  comprobar('Bloque "archivos:" con un renglon por ruta', e2.rutas.length === 2 && e2.rutas[0] === 'C:\\x y\\iphone13-victoria.png');
+  comprobar('...el bloque termina en la siguiente clave', e2.texto.includes('pago: contado'));
+
+  const e3 = extraerArchivos('campaña para mocoa archivo: C:\\a b\\x.png y C:\\c\\y.mp4');
+  comprobar('"archivo:" en medio de la frase, varias rutas con "y"', e3.rutas.length === 2 && e3.rutas[1] === 'C:\\c\\y.mp4');
+  comprobar('...lo de antes de "archivo:" se conserva', e3.texto.includes('campaña para mocoa'));
+
+  const e4 = extraerArchivos('campaña para zafiro con tecnocamon50pro-zafiro.png');
+  comprobar('Nombre suelto de archivo', e4.rutas[0] === 'tecnocamon50pro-zafiro.png');
+
+  const conRuta = interpretar('campaña para mocoa a credito archivo: creativos/mocoa/iphone13-mocoa.png');
+  comprobar('Con la ruta, el equipo se lee del nombre del archivo', conRuta.ok && conRuta.cfg.conjuntos[0].anuncios[0].referencia === 'IPHONE 13');
+  comprobar('...y el nombre dice si es iPhone o Android', conRuta.ok && conRuta.cfg.conjuntos[0].segmento === 'IPH-CRED');
+
+  const mezcla = interpretar('campaña para mocoa a credito archivos: creativos/mocoa/iphone13-mocoa.png, creativos/mocoa/tecnocamon50pro-mocoa.png');
+  comprobar('Dos rutas de familias distintas van a dos conjuntos', mezcla.ok && mezcla.cfg.conjuntos.map((c) => c.segmento).sort().join() === 'AND-CRED,IPH-CRED');
+
+  const mal = join(RAIZ_CREATIVOS, 'mocoa', 'foto final.png');
+  copyFileSync(join(RAIZ_CREATIVOS, 'mocoa', 'iphone13-mocoa.png'), mal);
+  try {
+    const r = interpretar('campaña para mocoa archivo: "foto final.png"');
+    comprobar('Un archivo sin marca ni modelo en el nombre se rechaza', !r.ok && r.problemas.some((p) => p.includes('No pude leer marca y modelo')));
+  } finally {
+    if (existsSync(mal)) rmSync(mal);
+  }
+
+  const noExiste = interpretar('campaña para mocoa archivo: creativos/mocoa/iphone99-mocoa.png');
+  comprobar('Un archivo que no existe se dice', !noExiste.ok && noExiste.problemas.some((p) => p.includes('No encontre el archivo')));
+
+  const deOtra = interpretar('campaña para mocoa a credito archivo: creativos/neiva/tecnocamon50pro-neiva.png');
+  comprobar('Una ruta de otra sede se acepta con aviso', deOtra.ok && deOtra.avisos.some((a) => a.includes('no esta en creativos/mocoa/')));
+  comprobar('...y habilita esa pieza de fuera', deOtra.ok && deOtra.cfg.permitirCreativoFueraDeLaSede === true);
+
+  comprobar('"objetivo: ventas"', detectarObjetivo('campaña objetivo: ventas')?.codigo === 'VENTAS_WHATSAPP');
+  comprobar('"objetivo de clientes potenciales"', detectarObjetivo('objetivo de clientes potenciales')?.codigo === 'LEADS_WHATSAPP');
+  comprobar('"campaña de reconocimiento"', detectarObjetivo('campaña de reconocimiento para mocoa')?.codigo === 'RECONOCIMIENTO');
+  comprobar('"objetivo: mensajes"', detectarObjetivo('objetivo: mensajes')?.codigo === 'MENSAJES_WHATSAPP');
+  comprobar('Sin objetivo en la orden, no se inventa', detectarObjetivo('campaña para mocoa de iphone 13') === null);
+
+  const conObjetivo = interpretar('campaña para mocoa de iphone 13 a credito objetivo: clientes potenciales');
+  comprobar('El objetivo de la orden llega a la campana', conObjetivo.ok && conObjetivo.cfg.objetivo === 'LEADS_WHATSAPP');
+  comprobar('...y no se pega al modelo del equipo', conObjetivo.ok && conObjetivo.cfg.conjuntos[0].anuncios[0].referencia === 'IPHONE 13');
+
+  const regional = interpretar('campaña de reconocimiento para mocoa con tecno camon 50 pro');
+  comprobar('Un objetivo regional toma la region de la sede', regional.ok && regional.cfg.region === 'PUTUMAYO');
+
+  const raro = interpretar('campaña para mocoa de iphone 13 objetivo: seguidores');
+  comprobar('Un objetivo desconocido se rechaza y dice cuales hay', !raro.ok && raro.problemas.some((p) => p.includes('No reconozco el objetivo')));
+}
 
 /* -------------------------------------------------------------------------- */
 

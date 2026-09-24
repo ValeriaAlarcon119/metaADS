@@ -28,6 +28,8 @@ import {
 import { SEDES_DISPONIBLES, obtenerSede as obtenerSedeTargeting } from './targeting.js';
 import { resolverCreativo, RAIZ } from './creativos-sede.js';
 import { MAX_OPCIONES_TEXTO } from './creatives.js';
+import { revisarReglasDePago, esSoloContado } from './copys.js';
+import { leerPrecio, ponerPrecio } from './precios.js';
 import { obtenerObjetivo, OBJETIVO_POR_DEFECTO } from './objetivos.js';
 
 export const CARPETA_CAMPANAS = join(RAIZ, 'campanas');
@@ -198,7 +200,7 @@ export function validarCampana(cfg) {
       );
     }
 
-    const anunciosOk = anuncios.map((a, i) => validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo }));
+    const anunciosOk = anuncios.map((a, i) => validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo, segmento }));
 
     return {
       ...entrada,
@@ -248,7 +250,7 @@ export function validarCampana(cfg) {
 /*  Validacion de un anuncio suelto                                           */
 /* -------------------------------------------------------------------------- */
 
-function validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo = '' }) {
+function validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo = '', segmento = '' }) {
   {
     const etiqueta = `${prefijo}${a.referencia || `anuncio ${i + 1}`}`;
 
@@ -292,6 +294,37 @@ function validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo = '' }) {
       }
     }
 
+    /* Credito: todos los textos dicen "reportados". Contado: todos llevan el
+       precio de src/precios.js. Vale igual para lo escrito a mano y para lo
+       editado en el panel (decision del cliente, 24/09/2026). */
+    let faltaPrecio = false;
+    let precioContado = null;
+    if (segmento && esSoloContado(segmento)) {
+      precioContado = leerPrecio(a.precioContado);
+      // Con precio, la marca {PRECIO} de los textos generados se reemplaza.
+      if (precioContado) {
+        const poner = (lista) => (Array.isArray(lista) ? lista.map((t) => ponerPrecio(t, precioContado)) : lista);
+        a = { ...a, textosPrincipales: poner(a.textosPrincipales), titulos: poner(a.titulos), descripciones: poner(a.descripciones) };
+      }
+    }
+    if (segmento && Array.isArray(a.textosPrincipales) && a.textosPrincipales.length) {
+      const regla = revisarReglasDePago({
+        segmento,
+        producto: a.producto || a.referencia,
+        textosPrincipales: a.textosPrincipales,
+        precioContado,
+      });
+      for (const e of regla.errores) errores.push(`${etiqueta}: ${e}`);
+      faltaPrecio = regla.faltaPrecio;
+      if (faltaPrecio) {
+        avisos.push(
+          `⚠️ ${etiqueta}: ES DE CONTADO Y FALTA EL PRECIO. Los productos de contado llevan el precio ` +
+            'escrito a mano: ponlo en el campo "Precio de contado" (etapa 3 del panel, o precioContado ' +
+            'en el archivo de la campana). Sin precio la campana no se deja crear.',
+        );
+      }
+    }
+
     /* El talento es opcional, pero si se pone tiene que ser uno de la lista. */
     if (a.talento) {
       const r = validarTalento(a.talento);
@@ -317,6 +350,8 @@ function validarAnuncio(a, i, { ficha, cfg, errores, avisos, prefijo = '' }) {
       producto: a.producto || a.referencia,
       rutaCreativoLocal: creativo ? creativo.ruta : a.rutaCreativoLocal,
       creativoRelativo: creativo ? creativo.rutaRelativa : '',
+      precioContado,
+      faltaPrecio,
     };
   }
 }

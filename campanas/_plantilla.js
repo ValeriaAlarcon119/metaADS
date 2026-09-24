@@ -157,6 +157,12 @@ export default {
 
       // El saludo que se ve en la pantalla previa al chat.
       saludoWhatsApp: 'Hola, cuéntanos qué equipo te interesa y te asesoramos.',
+
+      // SOLO en conjuntos de CONTADO (IPH-CONT, AND-CONT): el precio, escrito a
+      // mano y obligatorio. Los 5 textos principales tienen que llevarlo
+      // ($1.999.000). Sin precio la campana no se deja crear.
+      // En CREDITO, los 5 textos tienen que decir "tambien para reportados".
+      // precioContado: 1999000,
     },
 
     // Para el segundo anuncio, copia el bloque de arriba y cambia lo que toque.

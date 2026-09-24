@@ -16,11 +16,20 @@ import { planificarEstructura, paramsDeCampana, paramsDeConjunto } from '../src/
 import { armarParamsAdCreative } from '../src/creatives.js';
 import { paginaDeSede, RUTA_LINEAS_XLSX } from '../src/config.js';
 import { lineaDeSede } from '../src/lineas.js';
+import { revisarReglasDePago, LLAMADOS_A_LA_ACCION } from '../src/copys.js';
+import { aplicarAjustes } from '../src/ajustes.js';
+import { MARCA_PRECIO } from '../src/precios.js';
 import { basename, dirname } from 'node:path';
 
 const SEDES = { 'la 16': 'LA16', sebastian: 'SEBASTIAN', liceo: 'LICEO', victoria: 'VICTORIA', zafiro: 'ZAFIRO', markus: 'MARKUS', tuquerres: 'TUQUERRES', orito: 'ORITO', 'la hormiga': 'HORMIGA', 'puerto asis': 'PTOASIS', mocoa: 'MOCOA', medellin: 'MEDELLIN', neiva: 'NEIVA' };
 const CARPETA = { LA16: 'la16', SEBASTIAN: 'sebastian', LICEO: 'liceo', VICTORIA: 'victoria', ZAFIRO: 'zafiro', MARKUS: 'markus', TUQUERRES: 'tuquerres', ORITO: 'orito', HORMIGA: 'hormiga', PTOASIS: 'ptoasis', MOCOA: 'mocoa', MEDELLIN: 'medellin', NEIVA: 'neiva' };
-const PEDIDOS = ['android', 'iphone 13', 'tecno camon 50 pro, infinix hot 60 pro y iphone 13'];
+// El modelo es obligatorio en la orden. El de contado lleva el precio escrito a
+// mano, como se haria en la etapa 3 del panel.
+const PEDIDOS = [
+  { texto: 'tecno camon 50 pro y infinix hot 60 pro a credito' },
+  { texto: 'iphone 13 a credito' },
+  { texto: 'tecno camon 50 pro, infinix hot 60 pro y iphone 13 de contado', precio: 1999000 },
+];
 const INVALIDAS = new Set(['music', '3d_animation', 'image_generation', 'background_generation', 'catalog_feed_tags', 'generate_text']);
 const OTRAS = ['Neiva', 'Mocoa', 'Orito', 'Hormiga', 'Ipiales', 'Medellín', 'Túquerres', 'Puerto Asís', 'Pasto'];
 const sinTildes = (s) => String(s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -31,12 +40,19 @@ const mal = (caso, msg) => fallos.push({ caso, msg });
 
 for (const [frase, codigo] of Object.entries(SEDES)) {
   for (const pedido of PEDIDOS) {
-    const caso = `${codigo} · ${pedido}`;
+    const caso = `${codigo} · ${pedido.texto}`;
     total++;
-    const l = interpretar(`campaña para ${frase} de ${pedido}`);
+    const l = interpretar(`campaña para ${frase} de ${pedido.texto}`);
     if (!l.ok) { mal(caso, 'no se entendio: ' + (l.problemas || []).join(' / ')); continue; }
     let plan;
-    try { plan = await planificarEstructura({ ...l.cfg, sinConexion: true, estado: 'PAUSED' }); }
+    try {
+      // El mismo camino que el panel: ajustes (con el precio escrito a mano) y validacion.
+      const ajustes = pedido.precio
+        ? { conjuntos: l.cfg.conjuntos.map((c) => ({ anuncios: c.anuncios.map(() => ({ precioContado: String(pedido.precio) })) })) }
+        : {};
+      const { cfg } = aplicarAjustes({ ...l.cfg, archivo: 'revision' }, ajustes);
+      plan = await planificarEstructura({ ...cfg, sinConexion: true, estado: 'PAUSED' });
+    }
     catch (e) { mal(caso, 'plan: ' + e.message.split('\n')[0]); continue; }
 
     if (plan.sede.codigo !== codigo) mal(caso, `sede ${plan.sede.codigo}`);
@@ -98,6 +114,12 @@ for (const [frase, codigo] of Object.entries(SEDES)) {
         a.copy.titulos.forEach((x) => x.length > 40 && mal(caso, `titulo de mas de 40: "${x}"`));
         a.copy.descripciones.forEach((x) => x.length > 30 && mal(caso, `descripcion de mas de 30: "${x}"`));
         // Los dos primeros textos pasan de 125 a proposito (src/copys.js): no es un fallo.
+        const regla = revisarReglasDePago({ segmento: cj.segmento, producto: a.producto, textosPrincipales: a.copy.textosPrincipales, precioContado: a.precioContado });
+        for (const e of regla.errores) mal(caso, e);
+        if (a.faltaPrecio || regla.faltaPrecio) mal(caso, `${a.nombre} de contado sin precio`);
+        if (todo.includes(MARCA_PRECIO)) mal(caso, `${a.nombre} quedo con {PRECIO} sin reemplazar`);
+        const llamados = a.copy.textosPrincipales.map((t) => LLAMADOS_A_LA_ACCION.find((x) => t.includes(x)));
+        if (!llamados.every(Boolean) || new Set(llamados).size !== llamados.length) mal(caso, `${a.nombre} sin llamados a la accion distintos`);
         const prod = a.nombre.split(' | ').pop();
         if (!sinTildes(a.copy.mensajePrellenado).includes(prod)) mal(caso, `prellenado no nombra ${prod}: ${a.copy.mensajePrellenado}`);
       }

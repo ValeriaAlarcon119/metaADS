@@ -37,7 +37,12 @@
 
 import { CODIGOS_SEGMENTO, MAX_ANUNCIOS_POR_CONJUNTO, SEDES, normalizarCampo } from './nomenclatura.js';
 import { SEDES as SEDES_GEO } from './targeting.js';
-import { listarCreativosDeSede } from './creativos-sede.js';
+import { statSync } from 'node:fs';
+import { basename, extname } from 'node:path';
+
+import { listarCreativosDeSede, resolverCreativo } from './creativos-sede.js';
+import { OBJETIVOS } from './objetivos.js';
+import { SEDES_POR_REGION, REGIONES } from './nomenclatura.js';
 import { generarCopys } from './copys.js';
 
 /* -------------------------------------------------------------------------- */
@@ -534,6 +539,137 @@ export function buscarPiezas(sede, producto) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Rutas de archivo escritas en la orden                                     */
+/* -------------------------------------------------------------------------- */
+
+const EXT_PIEZA = '(?:jpe?g|png|gif|bmp|webp|mp4|mov|avi|mkv|webm|m4v|3gp)';
+const EXT_VIDEO = /\.(mp4|mov|avi|mkv|webm|m4v|3gp)$/i;
+
+/** Quita vinetas y conectores del principio: "- ", "• ", "y ", "e ". */
+const limpiarRuta = (r) => String(r).trim().replace(/^(?:[-*•·]\s*|y\s+|e\s+)+/i, '').trim();
+
+/**
+ * Saca de la orden las rutas de las piezas que se quieren usar. Acepta:
+ *
+ *   "C:\...\creativos\victoria\iphone15-victoria.jpg"   entre comillas (con espacios)
+ *   archivos: ruta1, ruta2                                 en un renglon
+ *   archivos:                                              o un renglon por ruta
+ *     C:\...\infinixhot60pro neiva.mp4
+ *     creativos/victoria/iphone15-victoria.jpg
+ *   iphone15-victoria.jpg                                  nombre suelto (carpeta de la sede)
+ *
+ * Devuelve las rutas y el texto SIN ellas: el nombre de un archivo suele
+ * llevar la sede y el modelo, y no debe confundir la lectura del resto.
+ */
+export function extraerArchivos(texto) {
+  const rutas = [];
+  let t = String(texto || '').replace(/\r/g, '');
+
+  // 1. Entre comillas: pueden llevar espacios.
+  t = t.replace(new RegExp(`["“”']([^"“”'\\n]+?\\.${EXT_PIEZA})["“”']`, 'gi'), (m, r) => {
+    rutas.push(limpiarRuta(r));
+    return ' ';
+  });
+
+  // 2. Bloque "archivos:" — en el mismo renglon o un renglon por ruta.
+  const rutaEnRenglon = new RegExp(`[^;|,\\n]*?\\.${EXT_PIEZA}\\b`, 'gi');
+  const cabecera = /(^|\s)(?:archivos?|creativos?|piezas?|rutas?)\s*:\s*(.*)$/i;
+  const otraClave = /^\s*[a-záéíóúñ ]{2,}:\s*/i; // "sede:", "pago:"... pero no "C:\"
+  const renglones = t.split('\n');
+  let enBloque = false;
+  for (let i = 0; i < renglones.length; i++) {
+    let r = renglones[i];
+    let antes = '';
+    const cab = r.match(cabecera);
+    if (cab) {
+      enBloque = true;
+      // Lo que va antes de "archivo:" en el mismo renglon es parte de la orden.
+      antes = r.slice(0, cab.index);
+      r = cab[2];
+    } else if (enBloque && (/^\s*$/.test(r) || (otraClave.test(r) && !/^\s*[-*•]?\s*[a-z]:[\\/]/i.test(r)))) {
+      enBloque = false;
+      continue;
+    }
+    if (!enBloque) continue;
+    for (const m of r.matchAll(rutaEnRenglon)) {
+      const ruta = limpiarRuta(m[0]);
+      if (ruta) rutas.push(ruta);
+    }
+    renglones[i] = antes;
+  }
+  t = renglones.join('\n');
+
+  // 3. Sueltas, sin espacios: C:\x\y.png, creativos/sede/x.mp4 o x.jpg.
+  t = t.replace(new RegExp(`(?<![\\w.])(?:[a-z]:)?[\\w\\-./\\\\]*\\.${EXT_PIEZA}\\b`, 'gi'), (m) => {
+    rutas.push(limpiarRuta(m));
+    return ' ';
+  });
+
+  return { rutas: [...new Set(rutas.filter(Boolean))], texto: t };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  El objetivo escrito en la orden                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Palabras que nombran cada objetivo (ya normalizadas: sin tildes). */
+const PALABRAS_OBJETIVO = [
+  ['MENSAJES_WHATSAPP', ['mensajes a whatsapp', 'mensajes', 'mensaje', 'conversaciones', 'interaccion', 'whatsapp']],
+  ['LEADS_WHATSAPP', ['clientes potenciales', 'cliente potencial', 'leads', 'lead', 'prospectos']],
+  ['VENTAS_WHATSAPP', ['ventas', 'venta', 'conversiones', 'compras']],
+  ['RECONOCIMIENTO', ['reconocimiento de marca', 'reconocimiento', 'alcance', 'awareness']],
+  ['TRAFICO', ['trafico', 'clics', 'visitas']],
+];
+
+/**
+ * El objetivo dicho en la orden, o null si no se dijo.
+ *
+ *   "objetivo: ventas", "objetivo de reconocimiento", "objetivo leads"
+ *   "campana de reconocimiento para ...", "campana de trafico ..."
+ *
+ * @returns {{codigo:string|null, dicho:string}|null}  codigo null = se dijo
+ *          "objetivo X" pero X no es ninguno conocido.
+ */
+export function detectarObjetivo(texto) {
+  const n = normalizar(texto);
+  const buscar = (trozo) => {
+    for (const [codigo, palabras] of PALABRAS_OBJETIVO) {
+      if (palabras.some((p) => trozo === p || trozo.startsWith(`${p} `))) return codigo;
+    }
+    return null;
+  };
+
+  const explicito = n.match(/\bobjetivo (?:de |es |sera )?(.+)$/);
+  if (explicito) {
+    const dicho = explicito[1].split(' ').slice(0, 4).join(' ');
+    return { codigo: buscar(dicho), dicho };
+  }
+
+  const deCampana = n.match(/\bcampana (?:de |para )?(reconocimiento|alcance|trafico|leads|clientes potenciales|ventas|conversiones|mensajes)\b/);
+  if (deCampana) return { codigo: buscar(deCampana[1]), dicho: deCampana[1] };
+
+  return null;
+}
+
+/**
+ * La orden sin la frase del objetivo, para que "iphone 13 objetivo ventas" no
+ * se lea como el modelo "iPhone 13 Objetivo Ventas".
+ */
+export function quitarObjetivo(texto) {
+  const claves = PALABRAS_OBJETIVO.flatMap(([, p]) => p).sort((a, b) => b.length - a.length);
+  const conocida = new RegExp(`\\bobjetivo\\s*(?:de|es|ser[aá])?\\s*:?\\s*(?:${claves.join('|')})\\b`, 'gi');
+  return String(texto)
+    .normalize('NFC')
+    .replace(conocida, ' ')
+    .replace(/\bobjetivo\s*(?:de|es|ser[aá])?\s*:?\s*\S+/gi, ' ');
+}
+
+/** La region que cubre una sede (la mas concreta: PASTO antes que NARINO). */
+function regionDeSede(sede) {
+  return REGIONES.find((r) => (SEDES_POR_REGION[r] || []).includes(sede)) || '';
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Interpretacion completa                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -550,8 +686,12 @@ export function interpretar(texto, opciones = {}) {
   const avisos = [];
   const problemas = [];
 
-  const crudo = String(texto || '').trim();
-  if (!crudo) {
+  const original = String(texto || '').trim();
+  // Las rutas se sacan primero: el nombre de un archivo lleva la sede y el
+  // modelo, y el resto de la lectura se hace sobre la orden sin ellas.
+  const { rutas, texto: sinRutas } = extraerArchivos(original);
+  const crudo = sinRutas.replace(/\s+/g, ' ').trim();
+  if (!original) {
     return {
       ok: false,
       cfg: null,
@@ -591,7 +731,69 @@ export function interpretar(texto, opciones = {}) {
 
   /* --- 2. Los productos -------------------------------------------------- */
 
-  const productos = detectarProductos(crudo);
+  const productos = detectarProductos(quitarObjetivo(crudo));
+
+  // Piezas pedidas con su ruta: el equipo (y si es iPhone o Android) se lee
+  // del NOMBRE del archivo. Sin marca y modelo en el nombre no se usa: es la
+  // misma regla que evita pautar con el creativo de otro equipo.
+  const explicitas = new Map();
+  let piezaFueraDeLaSede = false;
+  for (const ruta of rutas) {
+    let r;
+    try {
+      r = resolverCreativo(ficha.codigo, ruta, { permitirFueraDeLaSede: true });
+    } catch (error) {
+      problemas.push(`No encontre el archivo "${ruta}". ${String(error.message).split('\n').slice(1).join(' ').trim()}`);
+      continue;
+    }
+
+    const nombre = basename(r.ruta);
+    const esVideo = EXT_VIDEO.test(nombre);
+    const leidos = detectarProductos(nombre.replace(/\.[^.]+$/, ''));
+    if (leidos.length === 0) {
+      problemas.push(
+        `No pude leer marca y modelo en el nombre "${nombre}". Renombralo con marca y modelo ` +
+          `(por ejemplo "iphone15-${ficha.codigo.toLowerCase()}${extname(nombre)}"): asi se sabe si es iPhone o ` +
+          'Android y no se pauta con un creativo equivocado.',
+      );
+      continue;
+    }
+
+    const leido = leidos[0];
+    if (!r.enCarpetaDeLaSede) {
+      piezaFueraDeLaSede = true;
+      avisos.push(
+        `⚠️ "${nombre}" no esta en creativos/${ficha.codigo.toLowerCase()}/. Se usa porque la pediste con su ` +
+          'ruta: confirma en la etapa 3 que es una pieza de esta sede.',
+      );
+    }
+
+    const entrada = explicitas.get(leido.referencia) || {
+      producto: { ...leido, posicion: Number.MAX_SAFE_INTEGER, deRuta: true },
+      imagen: null,
+      video: null,
+    };
+    const hueco = esVideo ? 'video' : 'imagen';
+    if (entrada[hueco]) {
+      avisos.push(`Hay dos ${hueco === 'video' ? 'videos' : 'imagenes'} de ${leido.producto}; se usa "${entrada[hueco].nombre}" y "${nombre}" queda fuera.`);
+    } else {
+      entrada[hueco] = {
+        ruta: r.ruta,
+        rutaRelativa: r.rutaRelativa,
+        nombre,
+        tipo: hueco,
+        megas: (statSync(r.ruta).size / 1048576).toFixed(1),
+      };
+    }
+    explicitas.set(leido.referencia, entrada);
+    avisos.push(
+      `📎 "${nombre}" → ${leido.producto} (${leido.familia === 'IPH' ? 'iPhone' : leido.familia === 'MAC' ? 'Mac/iPad' : 'Android'}, ` +
+        `${esVideo ? 'video' : 'imagen'}), leido del nombre del archivo.`,
+    );
+  }
+  for (const { producto } of explicitas.values()) {
+    if (!productos.some((p) => p.referencia === producto.referencia)) productos.push(producto);
+  }
 
   // "una campana para Neiva de Android": se nombro una familia pero ningun
   // modelo de esa familia. Se barre la carpeta de la sede y se toma todo lo
@@ -603,40 +805,26 @@ export function interpretar(texto, opciones = {}) {
       .filter(Boolean),
   );
 
+  // El MODELO es obligatorio en la orden (decision del cliente, 24/09/2026).
+  // Antes "de android" tomaba todo lo que hubiera en la carpeta de la sede, y
+  // eso es justo como se cuela un creativo equivocado. Ahora se pide el
+  // modelo, y se ensena lo que hay en la carpeta para que sea facil decirlo.
   for (const familia of familiasPedidas) {
     if (productos.some((p) => p.familia === familia)) continue;
 
     const barrido = productosDeLaCarpeta(ficha.codigo, familia);
+    const nombreFamilia = familia === 'IPH' ? 'iPhone' : familia === 'MAC' ? 'Mac o iPad' : 'Android';
+    const hay = barrido.productos.map((p) => p.producto);
 
-    if (barrido.productos.length === 0) {
-      problemas.push(
-        `Pediste ${familia === 'IPH' ? 'iPhone' : familia === 'MAC' ? 'Mac o iPad' : 'Android'} sin decir ` +
-          `modelos, y en creativos/${ficha.codigo.toLowerCase()}/ no encontre ninguna pieza de esa familia` +
-          `${barrido.piezas === 0 ? ' (la carpeta esta vacia)' : ` entre las ${barrido.piezas} que hay`}.`,
-      );
-      continue;
-    }
-
-    // La posicion importa para el agrupado: se les da la de la palabra de
-    // familia que las invoco, para que caigan en su grupo.
-    const posicion = normalizar(crudo)
-      .split(' ')
-      .findIndex((p) => PALABRAS_DE_FAMILIA[p] === familia);
-
-    productos.push(...barrido.productos.map((p) => ({ ...p, posicion, deLaCarpeta: true })));
-
-    avisos.push(
-      `No dijiste modelos, asi que busque en creativos/${ficha.codigo.toLowerCase()}/ y tome los ` +
-        `${barrido.productos.length} equipo(s) que reconoci: ${barrido.productos.map((p) => p.producto).join(', ')}.`,
+    problemas.push(
+      `Pediste ${nombreFamilia} sin decir el modelo. Especifica marca y modelo en la orden ` +
+        '(por ejemplo "Tecno Camon 50 Pro" o "iPhone 13"): sin modelo no se elige pieza, para no pautar ' +
+        'con un creativo equivocado.' +
+        (hay.length
+          ? ` En creativos/${ficha.codigo.toLowerCase()}/ hay de esa familia: ${hay.join(', ')}.`
+          : ` En creativos/${ficha.codigo.toLowerCase()}/ no hay ninguna pieza de esa familia` +
+            `${barrido.piezas === 0 ? ' (la carpeta esta vacia)' : ''}.`),
     );
-
-    if (barrido.noIdentificados.length > 0) {
-      avisos.push(
-        `En esa carpeta hay ${barrido.noIdentificados.length} archivo(s) cuyo equipo NO pude leer del ` +
-          `nombre y quedaron fuera: ${barrido.noIdentificados.join(', ')}. ` +
-          'Renombralos con marca y modelo (por ejemplo "infinixhot60pro-neiva.mp4") o pidelos por su nombre.',
-      );
-    }
   }
 
   if (productos.length === 0) {
@@ -645,7 +833,7 @@ export function interpretar(texto, opciones = {}) {
     if (problemas.length === 0) {
       problemas.push(
         'No reconoci ningun equipo. Escribe marca y modelo: "iPhone 16", "Samsung A17", "Redmi 15".\n' +
-          `Tambien vale pegado ("infinixhot60pro") o por familia ("de android"), y entonces busco en la carpeta.\n` +
+          'Tambien vale pegado ("infinixhot60pro"). El modelo siempre es obligatorio: "de android" solo no basta.\n' +
           `Marcas que conozco: ${MARCAS.map((m) => m.etiqueta).join(', ')}.`,
       );
     }
@@ -689,7 +877,10 @@ export function interpretar(texto, opciones = {}) {
     const anuncios = [];
 
     for (const producto of grupo.productos) {
-      const piezas = buscarPiezas(ficha.codigo, producto);
+      const pedida = explicitas.get(producto.referencia);
+      const piezas = pedida
+        ? { imagen: pedida.imagen, video: pedida.video, comoSeEncontro: 'ruta escrita en la orden' }
+        : buscarPiezas(ficha.codigo, producto);
 
       if (!piezas.imagen && !piezas.video) {
         sinPieza.push(producto.producto);
@@ -711,6 +902,20 @@ export function interpretar(texto, opciones = {}) {
         ['VID', piezas.video],
       ]) {
         if (!pieza) continue;
+
+        // Contado: los copys salen con {PRECIO} y el aviso lo pone la
+        // validacion de la campana, que es la que bloquea hasta tener precio.
+        const copys = generarCopys({
+            producto: producto.producto,
+            ciudad: ciudadReal,
+            sede: ficha.sede,
+            // El codigo es lo que da la direccion oficial. Sin el, los copys
+            // salen sin direccion en vez de con una equivocada.
+            codigoSede: ficha.codigo,
+            segmento,
+            formato: tipo,
+          });
+
         anuncios.push({
           formato: tipo,
           referencia: producto.referencia,
@@ -727,16 +932,7 @@ export function interpretar(texto, opciones = {}) {
           // el archivo no lleva la marca en el nombre y podria ser de otro
           // equipo. La interfaz lo enseña para que se revise.
           comoSeEncontro: piezas.comoSeEncontro,
-          ...generarCopys({
-            producto: producto.producto,
-            ciudad: ciudadReal,
-            sede: ficha.sede,
-            // El codigo es lo que da la direccion oficial. Sin el, los copys
-            // salen sin direccion en vez de con una equivocada.
-            codigoSede: ficha.codigo,
-            segmento,
-            formato: tipo,
-          }),
+          ...copys,
         });
       }
     }
@@ -785,13 +981,47 @@ export function interpretar(texto, opciones = {}) {
 
   /* --- 5. La configuracion, igual que un archivo de campanas/ ------------ */
 
+  /* --- 6. El objetivo, si se dijo --------------------------------------- */
+
+  const objetivoDicho = detectarObjetivo(crudo);
+  let objetivo = '';
+  let region = '';
+  if (objetivoDicho && !objetivoDicho.codigo) {
+    problemas.push(
+      `No reconozco el objetivo "${objetivoDicho.dicho}". Escribe uno de estos: ` +
+        'mensajes, clientes potenciales (leads), ventas, reconocimiento o trafico.',
+    );
+  } else if (objetivoDicho) {
+    const ficha0 = OBJETIVOS[objetivoDicho.codigo];
+    objetivo = ficha0.codigo;
+    avisos.push(`🎯 Objetivo: ${ficha0.etiqueta} (${ficha0.enAdsManager}), tomado de la orden.`);
+    if (!ficha0.ensayado) {
+      avisos.push(`"${ficha0.etiqueta}" todavia no se ha ensayado contra la cuenta: ensayalo antes de crear.`);
+    }
+    if (ficha0.ambito === 'regional') {
+      region = regionDeSede(ficha.codigo);
+      avisos.push(
+        `"${ficha0.etiqueta}" es una campana REGIONAL (R#): se toma la region ${region}, la de ${ficha.codigo}. ` +
+          'Cambiala en la primera pantalla si es otra.',
+      );
+    }
+  }
+
+  if (problemas.some((p) => p.startsWith('No reconozco el objetivo'))) {
+    return { ok: false, cfg: null, lectura: { sede: ficha.codigo }, avisos, problemas };
+  }
+
   const cfg = {
-    descripcion: `Generada desde: "${crudo.slice(0, 120)}${crudo.length > 120 ? '…' : ''}"`,
+    descripcion: `Generada desde: "${original.slice(0, 120)}${original.length > 120 ? '…' : ''}"`,
     sede: ficha.codigo,
     sedeTargeting: TARGETING_DE_SEDE[ficha.codigo],
     modoTexto: 'multiple',
     conjuntos,
-    origen: { tipo: 'interprete', texto: crudo },
+    origen: { tipo: 'interprete', texto: original },
+    ...(objetivo ? { objetivo } : {}),
+    ...(region ? { region } : {}),
+    // Una ruta escrita a proposito fuera de la carpeta de la sede.
+    ...(piezaFueraDeLaSede ? { permitirCreativoFueraDeLaSede: true } : {}),
   };
 
   return {
@@ -812,6 +1042,9 @@ export function interpretar(texto, opciones = {}) {
       })),
       sinPieza,
       copysGenerados: true,
+      objetivo,
+      region,
+      archivos: rutas,
     },
     avisos,
     problemas,
@@ -820,6 +1053,8 @@ export function interpretar(texto, opciones = {}) {
 
 export default {
   interpretar,
+  extraerArchivos,
+  detectarObjetivo,
   detectarSede,
   detectarProductos,
   detectarPresupuesto,

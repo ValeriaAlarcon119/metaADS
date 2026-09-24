@@ -21,11 +21,23 @@
  *  Nunca inventa megapixeles, milliamperios, pulgadas ni precios. Un texto
  *  publicitario con una cifra falsa es un problema de verdad, no un detalle.
  *
+ *  CREDITO Y CONTADO (decision del cliente, 24/09/2026)
+ *
+ *    - Si el conjunto ofrece credito, TODOS los textos principales llevan
+ *      "CRÉDITO PARA REPORTADOS" en mayusculas y negrilla (Unicode).
+ *    - Si el conjunto es solo de contado (IPH-CONT, AND-CONT), TODOS los
+ *      textos principales llevan el precio de contado. El precio lo escribe a
+ *      mano quien pide la campana (src/precios.js): mientras no lo haga, los
+ *      textos llevan {PRECIO} y la campana no se deja crear.
+ *    - Cada uno de los 5 textos termina con un llamado a la accion DISTINTO,
+ *      sorteado de LLAMADOS_A_LA_ACCION.
+ *  `revisarReglasDePago` aplica las reglas de pago a los textos a mano.
+ *
  *  CERO PROMOCIONES (decision del cliente, 23/09/2026)
  *
  *  No se nombra ningun sorteo, descuento, rifa, fecha de campana, "sin
- *  inicial", "aplica reportado" ni condicion de credito concreta. Nada de eso
- *  esta en ninguna fuente de datos del sistema, asi que escribirlo seria
+ *  inicial" ni condicion de credito concreta (cuotas, tasas, plazos). Nada de
+ *  eso esta en ninguna fuente de datos del sistema, asi que escribirlo seria
  *  inventarlo. Cuando exista un archivo de promociones vigentes se conecta
  *  aqui; hasta entonces, los copys venden el equipo y la tienda.
  *
@@ -39,6 +51,7 @@
 
 import { LIMITES_COPY } from './campanas.js';
 import { direccionDeSede } from './direcciones.js';
+import { MARCA_PRECIO, formatearPrecio } from './precios.js';
 
 /* -------------------------------------------------------------------------- */
 /*  Que permite decir cada segmento                                           */
@@ -58,6 +71,107 @@ const PAGO_POR_SEGMENTO = Object.freeze({
   'MAC-IPAD': { credito: true, contado: true, retoma: false },
   RETOMA: { credito: true, contado: true, retoma: true },
 });
+
+/** Lo que dice el segmento sobre como se paga. */
+export function pagoDelSegmento(segmento) {
+  return PAGO_POR_SEGMENTO[String(segmento || '').toUpperCase()] || PAGO_POR_SEGMENTO.MIXTO;
+}
+
+/** Solo contado: el anuncio tiene que llevar el precio. */
+export const esSoloContado = (segmento) => !pagoDelSegmento(segmento).credito;
+
+/** Lo que tiene que aparecer en un texto de credito. */
+const MENCION_REPORTADOS = /reportad/i;
+
+/**
+ * Meta no tiene negrilla: el texto del anuncio es plano. La negrilla que se ve
+ * en otros anuncios son letras "negrilla" de Unicode (Mathematical Sans-Serif
+ * Bold), que se ven gruesas en Facebook, Instagram y WhatsApp. Las tildes se
+ * conservan como acento combinado: 'CRÉDITO' -> '𝗖𝗥𝗘́𝗗𝗜𝗧𝗢'.
+ */
+export function negrilla(texto) {
+  return [...String(texto).normalize('NFD')]
+    .map((c) => {
+      const n = c.codePointAt(0);
+      if (n >= 65 && n <= 90) return String.fromCodePoint(0x1d5d4 + n - 65);
+      if (n >= 97 && n <= 122) return String.fromCodePoint(0x1d5ee + n - 97);
+      if (n >= 48 && n <= 57) return String.fromCodePoint(0x1d7ec + n - 48);
+      return c;
+    })
+    .join('');
+}
+
+/** Texto plano de lo que venga en negrilla Unicode, para poder revisarlo. */
+export const sinNegrilla = (texto) => String(texto).normalize('NFKC');
+
+/** La frase de credito, como la pidio el cliente: mayusculas y negrilla. */
+export const CREDITO_PARA_REPORTADOS = negrilla('CRÉDITO PARA REPORTADOS');
+
+/**
+ * Las dos reglas de pago aplicadas a una lista de textos principales, sean
+ * generados o escritos a mano.
+ *
+ *   credito  -> cada texto menciona que aplica para reportados
+ *   contado  -> con precio: cada texto lo lleva y no queda ningun {PRECIO}
+ *               sin precio: `faltaPrecio`. No es un error del texto sino un
+ *               dato pendiente: se avisa y la creacion se bloquea.
+ *
+ * @returns {{errores:string[], faltaPrecio:boolean}}
+ */
+export function revisarReglasDePago({ segmento, producto, textosPrincipales = [], precioContado = null }) {
+  const errores = [];
+  const textos = (textosPrincipales || []).map(String);
+
+  if (esSoloContado(segmento)) {
+    if (!precioContado) return { errores, faltaPrecio: true };
+
+    const conPrecio = formatearPrecio(precioContado);
+    const sinPrecio = textos.filter((t) => !t.includes(conPrecio));
+    if (sinPrecio.length) {
+      errores.push(
+        `${producto} es de contado: los ${textos.length} textos principales tienen que llevar el precio ` +
+          `${conPrecio}, y ${sinPrecio.length} no lo llevan.`,
+      );
+    }
+    return { errores, faltaPrecio: false };
+  }
+
+  const sinMencion = textos.filter((t) => !MENCION_REPORTADOS.test(sinNegrilla(t)));
+  if (sinMencion.length) {
+    errores.push(
+      `${producto} es a credito: los ${textos.length} textos principales tienen que decir que el ` +
+        `credito aplica tambien para reportados, y ${sinMencion.length} no lo dicen.`,
+    );
+  }
+  return { errores, faltaPrecio: false };
+}
+
+/**
+ * Llamados a la accion. Cada texto principal termina con uno distinto,
+ * sorteado cada vez que se generan los copys.
+ */
+export const LLAMADOS_A_LA_ACCION = Object.freeze([
+  '👉 ¡Escríbenos hoy!',
+  '📲 ¡Escríbenos ya por WhatsApp!',
+  '📞 ¡Llámanos ya!',
+  '💬 ¡Pregunta hoy por WhatsApp!',
+  '🛒 ¡Aparta el tuyo hoy!',
+  '⚡ ¡Cotiza ahora mismo!',
+  '🙋 ¡Pide tu asesoría ya!',
+  '🤝 ¡Habla hoy con un asesor!',
+  '🏬 ¡Visítanos hoy en tienda!',
+  '⏰ ¡No te quedes sin el tuyo, escríbenos!',
+]);
+
+/** Copia barajada (Fisher-Yates). `azar` se puede fijar en las pruebas. */
+function barajar(lista, azar = Math.random) {
+  const copia = [...lista];
+  for (let i = copia.length - 1; i > 0; i--) {
+    const j = Math.floor(azar() * (i + 1));
+    [copia[i], copia[j]] = [copia[j], copia[i]];
+  }
+  return copia;
+}
 
 /** Cabe dentro del limite comodo de Ads Manager. */
 const cabe = (texto, limite) => texto.length <= limite;
@@ -122,12 +236,20 @@ export function generarCopys({
   codigoSede = '',
   segmento = 'MIXTO',
   formato = 'IMG',
+  precioContado = null,
+  azar = Math.random,
 }) {
   const nombre = String(producto || '').trim();
   if (!nombre) throw new Error('copys: falta el nombre del producto.');
 
-  const pago = PAGO_POR_SEGMENTO[segmento] || PAGO_POR_SEGMENTO.MIXTO;
+  const pago = pagoDelSegmento(segmento);
   const esVideo = String(formato).toUpperCase() === 'VID';
+
+  // Contado: el precio lo escribe una persona. Sin el, va {PRECIO} en su
+  // sitio y la campana queda pendiente hasta que se escriba.
+  const soloContado = !pago.credito;
+  const precio = soloContado && precioContado ? precioContado : null;
+  const P = precio ? formatearPrecio(precio) : MARCA_PRECIO;
 
   // La direccion sale SIEMPRE del archivo maestro, nunca del texto libre.
   // Si la sede no la tiene configurada, los copys salen sin ella: es
@@ -147,61 +269,87 @@ export function generarCopys({
   const conDireccion = (texto) => (lineaDireccion ? `${texto}\n\n${lineaDireccion}` : texto);
 
   /* --- Textos principales ------------------------------------------------ */
-  // Los dos primeros llevan la direccion y pasan de 125 caracteres a
-  // proposito: es el formato que usa Celred hoy. Los de mas abajo son cortos
-  // para las ubicaciones donde el feed recorta.
+  // Orden fijo de cada texto (pedido del cliente, 24/09/2026):
+  //
+  //   🔥 gancho con el producto
+  //   💳 𝗖𝗥𝗘́𝗗𝗜𝗧𝗢 𝗣𝗔𝗥𝗔 𝗥𝗘𝗣𝗢𝗥𝗧𝗔𝗗𝗢𝗦      (contado: 💵 el precio)
+  //   ✨ frase llamativa ("¡En Celred es posible!")
+  //   👉 llamado a la accion, con emoji, distinto en cada texto
+  //
+  //   📍 direccion oficial de la sede, en TODOS los textos
+  //
+  // Pasan de 125 caracteres a proposito: es el formato de Celred, y el texto
+  // completo se ve al desplegar el anuncio.
 
-  const textos = [
-    conDireccion(
-      esVideo
-        ? `🎬 Mira el ${nombre} en video y llévatelo de ${tienda}.\n📲 Escríbenos por WhatsApp y te contamos precio y formas de pago.`
-        : `🔥 El ${nombre} te está esperando en ${tienda}.\n📲 Escríbenos por WhatsApp y te contamos precio y formas de pago.`,
-    ),
+  const llamados = barajar(LLAMADOS_A_LA_ACCION, azar);
 
-    conDireccion(
-      pago.credito
-        ? `💥 ¿Quieres estrenar el ${nombre}?\n✅ De contado o a crédito en ${tienda}.\n📩 Escríbenos y te asesoramos sin compromiso.`
-        : `💥 ¿Quieres estrenar el ${nombre}?\n✅ De contado en ${tienda}.\n📩 Escríbenos y te asesoramos sin compromiso.`,
-    ),
+  const lineaPago = soloContado ? `💵 ${P} de contado` : `💳 ${CREDITO_PARA_REPORTADOS}`;
 
-    `🚀 ${nombre} en ${tienda}. Escríbenos por WhatsApp y resolvemos todas tus dudas.`,
+  const ganchos = soloContado
+    ? [
+        esVideo ? `🎬 Mira el ${nombre} en video y llévatelo hoy.` : `🔥 ¡Estrena el ${nombre} en ${tienda}!`,
+        `💥 ¿Quieres el ${nombre}? Llévatelo de contado.`,
+        `🚀 ${nombre} disponible en ${tienda}.`,
+        `📱 Ven a probar el ${nombre} en ${tienda}.`,
+        `✅ ${nombre} con garantía y asesoría en ${tienda}.`,
+        // Reservas, por si alguna se repite.
+        `📦 ${nombre} listo para entregar en ${tienda}.`,
+        `⭐ El ${nombre} te espera en ${tienda}.`,
+      ]
+    : [
+        esVideo
+          ? `🎬 Mira el ${nombre} en video y llévatelo de ${tienda}.`
+          : `🔥 ¡Estrena el ${nombre} en ${tienda}!`,
+        `💥 ¿Quieres el ${nombre}? Tenlo de contado o a crédito.`,
+        `🚀 ${nombre} disponible en ${tienda}.`,
+        `📱 Ven a probar el ${nombre} en ${tienda}.`,
+        pago.retoma
+          ? `🔄 Recibimos tu usado como parte de pago del ${nombre}.`
+          : `✅ ${nombre} con garantía y asesoría en ${tienda}.`,
+        // Reservas.
+        `📦 ${nombre} listo para entregar en ${tienda}.`,
+        `⭐ El ${nombre} te espera en ${tienda}.`,
+      ];
 
-    `📱 Ven a ver el ${nombre} en ${tienda}. Lo pruebas en tienda antes de llevarlo.`,
+  // Frases llamativas, todas con Celred. Nada que prometa aprobacion: invitan
+  // a intentarlo ("Intentalo aqui en Celred", "En Celred es posible").
+  const frases = barajar(
+    soloContado
+      ? [
+          '✨ ¡Llévatelo hoy mismo en Celred!',
+          '🙌 Estrénalo hoy en Celred.',
+          '💯 Garantía y asesoría en Celred.',
+          '🎯 En Celred, precio claro y sin vueltas.',
+          '🤩 ¡Tu próximo celular te espera en Celred!',
+          '⚡ ¡En Celred lo tienes hoy!',
+          '🏆 ¡En Celred es posible!',
+        ]
+      : [
+          '✨ ¡En Celred es posible!',
+          '🙌 ¿Estás reportado? Inténtalo aquí en Celred.',
+          '🤩 Tu próximo celular está más cerca en Celred.',
+          '💯 En Celred te asesoramos para que lo estrenes.',
+          '🎯 Pregunta sin compromiso: ¡en Celred es posible!',
+          '⚡ ¡Inténtalo aquí en Celred!',
+          '🏆 Estrenar sí es posible en Celred.',
+        ],
+    azar,
+  );
 
-    pago.retoma
-      ? `🔄 Recibimos tu celular usado como parte de pago del ${nombre}. Consulta el avalúo por WhatsApp.`
-      : `✅ ${nombre} con garantía y asesoría en ${tienda}. Consulta disponibilidad por WhatsApp.`,
+  const textos = ganchos.map((gancho, i) => {
+    const cuerpo = [gancho, lineaPago, frases[i], llamados[i]].join('\n');
+    return lineaDireccion ? `${cuerpo}\n\n${lineaDireccion}` : cuerpo;
+  });
 
-    // Reservas, por si alguna de las de arriba no cabe con un nombre largo.
-    `${nombre} en ${tienda}. Escríbenos por WhatsApp.`,
-    `Consulta el ${nombre} en ${tienda} por WhatsApp.`,
-  ];
+  /* --- Titulos: cortos y concretos (limite comodo 40) --------------------- */
 
-  /* --- Titulos (limite comodo 40) ---------------------------------------- */
+  const titulos = soloContado
+    ? [nombre, `${nombre} a ${P}`, `${P} de contado`, '¡Llévatelo hoy!', lugar ? `Celred ${lugar}` : 'Celred', 'Estrénalo hoy']
+    : [nombre, 'CRÉDITO PARA REPORTADOS', `${nombre} a crédito`, '¡En Celred es posible!', lugar ? `Celred ${lugar}` : 'Celred', 'Estrénalo hoy'];
 
-  const titulos = [
-    `${nombre} 🔥`,
-    lugar ? `${nombre} en ${lugar}` : `${nombre} en Celred`,
-    pago.credito ? '💥 De contado o a crédito' : '💥 Consulta el precio',
-    '📲 ¡Escríbenos YA!',
-    pago.retoma ? '🔄 Recibimos tu usado' : '🚀 ¡Estrena en Celred!',
-    // Reservas para nombres largos.
-    nombre,
-    '📍 ¡Visítanos en tienda!',
-  ];
-
-  /* --- Descripciones (limite comodo 30) ---------------------------------- */
-
-  const descripciones = [
-    lugar ? `Celred ${lugar} 📍` : 'Tienda Celred 📍',
-    '📲 Cotiza por WhatsApp',
-    pago.credito ? '💳 Contado o crédito' : '💵 Precio de contado',
-    '✅ Consulta disponibilidad',
-    pago.retoma ? '🔄 Recibimos tu usado' : '🛡️ Garantía y asesoría',
-    // Reservas.
-    'Pregunta por tu equipo',
-    'Te asesoramos en tienda',
-  ];
+  /* --- Descripciones: SOLO el llamado a la accion, con emoji al inicio ---- */
+  // Otro sorteo, para que no repitan en el mismo orden los de los textos.
+  const descripciones = barajar(LLAMADOS_A_LA_ACCION, azar);
 
   /* --- Mensaje prellenado ------------------------------------------------ */
 
@@ -241,7 +389,19 @@ export function generarCopys({
     // Bandera para que la interfaz pueda decir "esto lo escribio el sistema,
     // revisalo" en vez de presentarlo como si lo hubiera escrito alguien.
     generado: true,
+    // Contado sin precio todavia: los textos llevan {PRECIO}.
+    faltaPrecio: soloContado && !precio,
+    precioContado: precio,
   };
 }
 
-export default { generarCopys };
+export default {
+  generarCopys,
+  revisarReglasDePago,
+  pagoDelSegmento,
+  esSoloContado,
+  negrilla,
+  sinNegrilla,
+  CREDITO_PARA_REPORTADOS,
+  LLAMADOS_A_LA_ACCION,
+};

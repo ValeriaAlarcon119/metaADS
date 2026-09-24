@@ -1812,6 +1812,27 @@ a.btn-relleno {
   margin-top: var(--e5);
 }
 
+/* Contado: el precio se escribe a mano y es obligatorio. */
+.aviso-precio {
+  border: 1px solid var(--aviso-borde);
+  background: var(--aviso-fondo);
+  color: var(--txt);
+  border-radius: var(--r-m);
+  padding: var(--e4);
+  margin: var(--e4) 0;
+  line-height: 1.55;
+}
+
+.aviso-precio > b:first-child {
+  display: block;
+  color: var(--aviso);
+  margin-bottom: var(--e1);
+}
+
+.aviso-precio label {
+  margin-top: var(--e3);
+}
+
 .editor-anuncio:first-child {
   border-top: 0;
   padding-top: 0;
@@ -1893,4 +1914,17 @@ a.btn-relleno {
   .acciones .btn {
     flex: 1 1 auto;
   }
+}
+
+/* Ejemplo de orden estructurada en la ayuda del dictado. */
+.orden-estructurada {
+  background: var(--hundido);
+  font-family: var(--mono);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  padding: var(--e3) var(--e4);
+  font-size: var(--t-caption);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

@@ -560,6 +560,14 @@ async function interpretar(evento) {
     });
     pintarLectura(r);
 
+    // Si la orden dice el objetivo ("objetivo: ventas"), manda la orden: el
+    // selector se mueve solo y, si es regional, toma la region de la sede.
+    if (r.entendido && r.lectura?.objetivo && r.lectura.objetivo !== estado.objetivo) {
+      estado.objetivo = r.lectura.objetivo;
+      if (r.lectura.region) estado.region = r.lectura.region;
+      pintarObjetivos();
+    }
+
     if (r.entendido) {
       // Se abre el asistente directamente: la lectura queda arriba, visible,
       // por si hay que volver y corregir la frase.
@@ -575,16 +583,26 @@ async function interpretar(evento) {
 /** Qué escribir, cuando la frase no se entendió y no hay nada concreto que decir. */
 function ayudaDelDictado() {
   return `
-    <p>Necesito dos cosas: <strong>la sede</strong> y <strong>los equipos</strong>.</p>
+    <p>Necesito dos cosas: <strong>la sede</strong> y <strong>el modelo de cada equipo</strong>
+       (o la ruta del archivo, con el modelo en el nombre).</p>
     <div class="modal-formato">
-      <div><b>Así</b><code>campaña para neiva con infinixhot60pro</code></div>
-      <div><b>O así</b><code>campaña para la sede La 16 con iphone 15 y samsung a07</code></div>
-      <div class="ejemplo"><b>O así</b><code>campaña para neiva de android</code></div>
+      <div><b>Así</b><code>campaña para neiva con infinix hot 60 pro a crédito</code></div>
+      <div><b>O así</b><code>campaña para victoria con iphone 13 de contado objetivo: mensajes</code></div>
+      <div><b>Con rutas</b><code>campaña para zafiro a crédito archivo: creativos/zafiro/samsunga17-zafiro.jpg</code></div>
     </div>
+    <p><strong>Orden completa</strong>, un dato por renglón:</p>
+    <pre class="orden-estructurada">sede: Victoria
+objetivo: mensajes
+pago: contado
+presupuesto: 30000
+archivos:
+  C:\ruta\a\iphone13-victoria.png
+  creativos/victoria/infinixhot60pro-victoria.mp4</pre>
     <p class="sutil">
-      Los equipos valen pegados (<code>infinixhot60pro</code>) o separados
-      (<code>infinix hot 60 pro</code>). Y si dices solo la familia —«de android», «de iphone»—
-      busco en la carpeta de esa sede y tomo lo que encuentre.
+      El modelo es obligatorio: «de android» o «de iphone» solos no bastan. Si das la ruta, el
+      equipo (y si es iPhone o Android) se lee del <strong>nombre del archivo</strong>.
+      Objetivos: mensajes, clientes potenciales (leads), ventas, reconocimiento, tráfico.
+      Una ruta con espacios va entre comillas o en su propio renglón bajo «archivos:».
     </p>`;
 }
 
@@ -1503,9 +1521,25 @@ function pintarEtapa3() {
           </label>
         </div>
 
+${
+          /-CONT$/.test(c.segmento)
+            ? `<div class="aviso-precio">
+          <b>⚠️ Producto de contado: el precio se escribe a mano.</b>
+          Los anuncios de contado llevan el precio sí o sí. Escríbelo aquí y se pone solo en los textos donde dice
+          <b>{PRECIO}</b>. Sin precio, la campaña no se deja crear.
+          <label>
+            Precio de contado (COP) <span class="sutil">— obligatorio, por ejemplo 1.999.000</span>
+            <input type="text" inputmode="numeric" ${d('precioContado')}
+                   value="${a.precioContado ? esc(Number(a.precioContado).toLocaleString('es-CO')) : ''}"
+                   placeholder="Escribe el precio" />
+          </label>
+        </div>`
+            : ''
+        }
         <label>
-          Textos principales <span class="sutil">— una opción por línea, máximo ${lim.maxOpciones}</span>
-          <textarea ${d('textosPrincipales')} rows="10">${esc(a.copy.textosPrincipales.join('\n'))}</textarea>
+          Textos principales <span class="sutil">— máximo ${lim.maxOpciones} opciones</span>
+          <textarea ${d('textosPrincipales')} rows="14">${esc(a.copy.textosPrincipales.join(SEPARADOR_OPCIONES))}</textarea>
+          <span class="pista-campo">Cada opción puede tener varios renglones. Las opciones se separan con una línea que tenga solo <b>———</b>.</span>
         </label>
         <label>
           Títulos <span class="sutil">— una por línea, hasta ${lim.titulos} caracteres</span>
@@ -1797,6 +1831,19 @@ async function guardarEtapa2(evento) {
   if (await planificar()) irA(2);
 }
 
+/**
+ * Los textos principales pueden tener varios renglones (la direccion va en su
+ * propio renglon), asi que las opciones se separan con una linea "———" y no
+ * con un salto de linea. Sin separador, cada renglon es una opcion.
+ */
+const SEPARADOR_OPCIONES = '\n———\n';
+
+function partirOpciones(valor) {
+  const texto = String(valor || '').replace(/\r/g, '');
+  const trozos = /^\s*———\s*$/m.test(texto) ? texto.split(/^\s*———\s*$/m) : texto.split('\n');
+  return trozos.map((t) => t.replace(/^\n+|\n+$/g, '').trim()).filter(Boolean);
+}
+
 async function guardarEtapa3(evento) {
   evento.preventDefault();
 
@@ -1807,11 +1854,17 @@ async function guardarEtapa3(evento) {
     const j = Number(campo.dataset.anuncio);
     const clave = campo.dataset.campo;
 
-    if (campo.tagName === 'TEXTAREA') {
+    if (clave === 'textosPrincipales') {
+      conjuntos[i].anuncios[j][clave] = partirOpciones(campo.value);
+    } else if (campo.tagName === 'TEXTAREA') {
       conjuntos[i].anuncios[j][clave] = campo.value
         .split('\n')
         .map((l) => l.trim())
         .filter(Boolean);
+    } else if (clave === 'precioContado') {
+      // Vacio = no se toca. Se mandan solo los digitos.
+      const digitos = campo.value.replace(/\D/g, '');
+      if (digitos) conjuntos[i].anuncios[j][clave] = digitos;
     } else {
       conjuntos[i].anuncios[j][clave] = campo.value.trim();
     }

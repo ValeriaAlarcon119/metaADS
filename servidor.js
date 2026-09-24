@@ -433,6 +433,8 @@ function vistaDelPlan(plan, { firma, cambios }) {
           modoTexto: a.modoTexto,
           enlace: a.enlaceWhatsApp,
           copyGenerado: a.copyGenerado,
+          precioContado: a.precioContado,
+          faltaPrecio: a.faltaPrecio,
           comoSeEncontroElCreativo: a.comoSeEncontroElCreativo,
           archivo: {
             nombre: a.archivo.nombre,

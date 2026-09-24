@@ -94,13 +94,13 @@ la marca y el modelo: `tecnocamon50pro-mocoa.png`.
 ### Paso 6 · Comprobar que todo responde
 
 ```powershell
-npm test               # 477 comprobaciones, sin red ni credenciales
+npm test               # 542 comprobaciones, sin red ni credenciales
 npm run revisar-sedes  # las 13 sedes armadas sin conexión: debe decir "problemas: 0"
 npm run cuentas        # que el token alcance las cuentas y pueda CREAR en ellas
 npm run lineas         # el WhatsApp que le toca a cada sede
 ```
 
-`npm test` tiene que terminar en **"477 comprobaciones, todas pasaron"**. Si
+`npm test` tiene que terminar en **"542 comprobaciones, todas pasaron"**. Si
 falla algo, la instalación no quedó bien: no pautes hasta resolverlo.
 
 Para abrir el panel: `npm run panel`, o doble clic en **`abrir-panel.bat`**, que
@@ -179,25 +179,60 @@ npm run panel        # y abrir http://127.0.0.1:4317
 Arriba hay un campo de texto. Se escribe como se le diría a alguien:
 
 ```
-ayúdame a crear una campaña para neiva de android
-campaña para la sede La 16 con el iphone15
-campaña para la victoria con redmi 15, samsung a07 y iphone 13
-campaña de prueba para neiva con tecnocamon50pro a crédito con 35 mil diarios
+campaña para neiva con infinix hot 60 pro a crédito
+campaña para la sede La 16 con iphone 15 de contado objetivo: mensajes
+campaña para la victoria con redmi 15, samsung a07 y iphone 13 a crédito
+campaña para zafiro a crédito archivo: creativos/zafiro/samsunga17-zafiro.jpg
 ```
 
-De ahí sale la campaña entera: sede, conjuntos, anuncios, creativos y textos.
+De ahí sale la campaña entera: sede, objetivo, conjuntos, anuncios, creativos y
+textos.
 
-**Los equipos se pueden escribir de tres formas**, y las tres funcionan:
+**La orden completa, un dato por renglón.** Cuando hay varias piezas o rutas
+largas es lo más claro:
 
-| Cómo lo escribes | Qué hace |
+```
+sede: Victoria
+objetivo: mensajes
+pago: contado
+presupuesto: 30000
+archivos:
+  C:\Users\...\creativos\victoria\iphone13-victoria.png
+  creativos/victoria/infinixhot60pro-victoria.mp4
+```
+
+| Dato | Qué se escribe | Si no se dice |
+|---|---|---|
+| **sede** | El nombre de la tienda: `Victoria`, `La 16`, `Mocoa`… | Obligatorio |
+| **equipos** | **Marca y modelo** (`iphone 13`, `tecnocamon50pro`), o la **ruta del archivo** | Obligatorio |
+| **objetivo** | `mensajes`, `clientes potenciales` (o `leads`), `ventas`, `reconocimiento`, `tráfico` | El que esté marcado en el selector (Mensajes a WhatsApp) |
+| **pago** | `crédito`, `contado` o `retoma` | Crédito |
+| **presupuesto** | `30000`, `30 mil`, `$30.000` | $25.000 al día por conjunto |
+
+**El modelo es obligatorio.** «campaña para neiva de android» ya no toma lo que
+haya en la carpeta: pide el modelo y muestra cuáles hay. Así nunca se pauta con
+el creativo de otro equipo.
+
+**Rutas de archivo.** Se pueden dar de tres formas:
+
+| Cómo | Ejemplo |
 |---|---|
-| `infinix hot 60 pro` | Separado, como se lee |
-| `infinixhot60pro` | Pegado, como se llama el archivo |
-| `de android` / `de iphone` | **Sin decir modelos**: va a `creativos/<sede>/` y toma todos los que reconozca del nombre del archivo |
+| Nombre suelto: se busca en `creativos/<sede>/` | `iphone13-victoria.png` |
+| Ruta sin espacios, en la frase | `archivo: creativos/zafiro/samsunga17-zafiro.jpg` |
+| Ruta con espacios: entre comillas o en su renglón bajo `archivos:` | `"C:\...\infinixhot60pro neiva.mp4"` |
 
-El barrido de carpeta solo reconoce lo que puede leer. Un archivo mal nombrado
-—`inifixhot60pro-neiva.mp4`, con la marca mal escrita— **no se adivina**: sale
-en un aviso aparte diciendo que quedó fuera y cómo renombrarlo.
+El equipo **y si es iPhone o Android** se leen del **nombre del archivo**. Un
+archivo sin marca ni modelo en el nombre (`foto final.png`) se rechaza con el
+nombre que debería tener. Una ruta de la carpeta de **otra** sede se acepta
+porque se pidió a propósito, pero sale un aviso para revisarla.
+
+**Objetivo en la orden.** Si la orden lo dice, manda la orden: el selector de la
+primera pantalla se mueve solo. `reconocimiento` y `tráfico` son campañas
+**regionales** (R#): toman la región de la sede (Mocoa → Putumayo), que se
+puede cambiar en esa pantalla.
+
+**Contado lleva precio escrito a mano.** En la etapa 3 aparece el campo
+«Precio de contado» por producto. Sin precio la campaña no se deja crear.
 
 Lo demás se deduce:
 
@@ -205,9 +240,8 @@ Lo demás se deduce:
 |---|---|
 | El segmento (`IPH-CRED`, `AND-CONT`…) | De la marca y de si se dice «contado», «crédito» o «retoma» |
 | Cuántos conjuntos | Uno por familia: los iPhone por un lado, los Android por otro |
-| El formato de cada anuncio | **Del archivo** que encuentre en `creativos/<sede>/`. Si hay foto **y** video del mismo equipo, crea los **dos** anuncios |
+| El formato de cada anuncio | **Del archivo**. Si hay foto **y** video del mismo equipo, crea los **dos** anuncios |
 | Los 5 textos, 5 títulos y 5 descripciones | Se generan (ver abajo) y se editan en la etapa 3 |
-| El presupuesto | Si no se dice, $25.000/día por conjunto |
 
 No hay modelo de lenguaje detrás: es un analizador de reglas, así que es
 predecible y funciona sin internet. **Cuando no entiende algo no lo adivina.**

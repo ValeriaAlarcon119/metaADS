@@ -19,6 +19,7 @@
 
 import { MAX_OPCIONES_TEXTO } from './creatives.js';
 import { validarCampana } from './campanas.js';
+import { ponerPrecio } from './precios.js';
 import { INTERRUPTORES_DE_EXPANSION } from './targeting.js';
 
 /* -------------------------------------------------------------------------- */
@@ -76,6 +77,9 @@ const CAMPOS_ANUNCIO = Object.freeze({
   descripciones: { tipo: 'lista-texto-libre', etiqueta: 'descripciones' },
   mensajePrellenado: { tipo: 'texto', etiqueta: 'mensaje prellenado' },
   saludoWhatsApp: { tipo: 'texto', etiqueta: 'saludo de WhatsApp' },
+  // Va el ultimo a proposito: se aplica despues de los textos, para poder
+  // cambiar en ellos el precio anterior por el nuevo.
+  precioContado: { tipo: 'pesos', etiqueta: 'precio de contado' },
 });
 
 /** Campos editables del nombre del conjunto. */
@@ -131,6 +135,17 @@ function convertir(valor, regla, donde, errores) {
 
     case 'texto':
       return String(valor ?? '').trim();
+
+    case 'pesos': {
+      // '1.999.000', '$1999000' o 1999000. Vacio = sin cambio.
+      if (String(valor ?? '').trim() === '') return undefined;
+      const n = Number(String(valor).replace(/\D/g, ''));
+      if (!Number.isFinite(n) || n < 1000) {
+        errores.push(`${nombre}: "${valor}" no es un precio valido en pesos.`);
+        return undefined;
+      }
+      return n;
+    }
 
     case 'booleano':
       // Se acepta lo que manda un formulario HTML ademas de un booleano real.
@@ -386,6 +401,14 @@ export function aplicarAjustes(campana, ajustes = {}) {
         const valor = convertir(edicionAnuncio[clave], regla, `${etiqueta} → `, errores);
         if (valor === undefined) continue;
         anotar(`${etapa}, anuncio ${i + 1}`, `${etiqueta}: ${regla.etiqueta}`, destino.anuncios[i][clave], valor);
+        // Cambiar el precio cambia tambien el precio viejo escrito en los textos.
+        if (clave === 'precioContado') {
+          const anterior = Number(destino.anuncios[i].precioContado) || null;
+          for (const lista of ['textosPrincipales', 'titulos', 'descripciones']) {
+            const actual = destino.anuncios[i][lista];
+            if (Array.isArray(actual)) destino.anuncios[i][lista] = actual.map((t) => ponerPrecio(t, valor, anterior));
+          }
+        }
         destino.anuncios[i][clave] = valor;
         // Un texto editado a mano deja de ser texto generado.
         if (clave !== 'saludoWhatsApp') destino.anuncios[i].generado = false;
